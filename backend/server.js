@@ -39,6 +39,11 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     problems.push('JWT_SECRET is missing or shorter than 32 characters');
   }
+  const origins = [...(process.env.CLIENT_URL || ''), ...(process.env.FRONTEND_URL ? `,${process.env.FRONTEND_URL}` : '')]
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  if (!origins.length) problems.push('CLIENT_URL or FRONTEND_URL must be set for production CORS');
   if (problems.length) {
     console.error(`Refusing to start in production:\n - ${problems.join('\n - ')}`);
     process.exit(1);
@@ -53,13 +58,19 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// CORS configuration. CLIENT_URL may hold several comma-separated origins.
-const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+// CORS configuration. CLIENT_URL/FRONTEND_URL may hold comma-separated origins.
+// Only explicitly listed origins are allowed (credentials enabled).
+const allowedOrigins = [
+  ...(process.env.CLIENT_URL || ''),
+  ...(process.env.FRONTEND_URL ? `,${process.env.FRONTEND_URL}` : ''),
+]
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+const effectiveOrigins =
+  allowedOrigins.length > 0 ? [...new Set(allowedOrigins)] : ['http://localhost:5173'];
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: effectiveOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   // X-CSRF-Token is required on every mutating request, so preflights must allow it.
@@ -135,20 +146,26 @@ app.use(notFound);
 // Global error handler
 app.use(globalErrorHandler);
 
-  // Listen only after MongoDB is connected, so no request reaches a dead database
-  const PORT = process.env.PORT || 5000;
+  // In production the API must not start without a database. In development we
+  // allow a degraded start so local work can continue, but the health check reports it.
+  const PORT = Number(process.env.PORT) || 5000;
+  const HOST = '0.0.0.0';
   const startServer = async () => {
     console.log('Loading environment variables...');
     try {
       await connectDB();
     } catch (err) {
-      console.error('MongoDB connection failed, starting server anyway:', err.message);
+      console.error('MongoDB connection failed:', err.message);
+      if (process.env.NODE_ENV === 'production') {
+        process.exit(1);
+      }
+      console.warn('Starting server in degraded mode (development only).');
     }
 
-  const server = app.listen(PORT, () => {
-    console.log(`Backend Server Running on Port ${PORT} (${process.env.NODE_ENV || 'development'} mode)`);
-    console.log(`Health check: http://localhost:${PORT}/api/health`);
-  });
+    const server = app.listen(PORT, HOST, () => {
+      console.log(`Backend Server Running on ${HOST}:${PORT} (${process.env.NODE_ENV || 'development'} mode)`);
+      console.log('Health check: /api/health');
+    });
 
   // Handle unhandled promise rejections
   process.on('unhandledRejection', (err) => {

@@ -147,7 +147,10 @@ const createStripeCheckout = async (req, res, next) => {
       paymentMethod: 'stripe',
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5174';
+    const frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl) {
+      return next(new AppError('FRONTEND_URL is not configured. Set it to your deployed frontend URL.', 503));
+    }
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [
