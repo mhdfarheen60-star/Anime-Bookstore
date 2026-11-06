@@ -161,10 +161,15 @@ app.use(globalErrorHandler);
   const HOST = '0.0.0.0';
   const startServer = async () => {
     console.log('Loading environment variables...');
+    console.log(`Runtime: NODE_ENV=${process.env.NODE_ENV || 'development'}, PORT=${process.env.PORT || '(default 5000)'}, MONGO_URI=${process.env.MONGO_URI ? 'set' : 'MISSING'}`);
     try {
       await connectDB();
     } catch (err) {
-      console.error('MongoDB connection failed:', err.message);
+      console.error('MongoDB connection failed:', {
+        name: err?.name,
+        message: err?.message,
+      });
+      if (err?.stack) console.error(err.stack);
       if (process.env.NODE_ENV === 'production') {
         process.exit(1);
       }
