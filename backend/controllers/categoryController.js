@@ -1,11 +1,21 @@
+import mongoose from 'mongoose';
 import Category from '../models/Category.js';
 import Book from '../models/Book.js';
 import { AppError } from '../middleware/errorMiddleware.js';
 
+// Books belong to a shelf either through their primary category or through a
+// merchandising tag (Bestsellers, Preorders, Box Sets, ...).
+const booksInCategory = (category) => ({
+  isActive: true,
+  $or: [{ category: category._id }, { tags: category.name }],
+});
+
 const getAllCategories = async (req, res, next) => {
   try {
     const { includeInactive } = req.query;
-    const query = includeInactive === 'true' ? {} : { isActive: true };
+    // Inactive categories are only visible to admins; everyone else gets active ones.
+    const showAll = includeInactive === 'true' && req.user?.role === 'admin';
+    const query = showAll ? {} : { isActive: true };
 
     const categories = await Category.find(query)
       .sort({ name: 1 })
@@ -13,7 +23,7 @@ const getAllCategories = async (req, res, next) => {
 
     const categoriesWithCount = await Promise.all(
       categories.map(async (cat) => {
-        const bookCount = await Book.countDocuments({ category: cat._id, isActive: true });
+        const bookCount = await Book.countDocuments(booksInCategory(cat));
         return { ...cat, bookCount };
       })
     );
@@ -29,15 +39,17 @@ const getAllCategories = async (req, res, next) => {
 
 const getCategoryById = async (req, res, next) => {
   try {
-    const category = await Category.findOne({
-      $or: [{ _id: req.params.id }, { slug: req.params.id }],
-    });
+    // Only try the _id branch for real ObjectIds; a slug there makes Mongoose throw.
+    const { id } = req.params;
+    const category = await Category.findOne(
+      mongoose.isValidObjectId(id) ? { $or: [{ _id: id }, { slug: id }] } : { slug: id }
+    );
 
     if (!category) {
       return next(new AppError('Category not found', 404));
     }
 
-    const bookCount = await Book.countDocuments({ category: category._id, isActive: true });
+    const bookCount = await Book.countDocuments(booksInCategory(category));
 
     res.json({
       success: true,
@@ -110,7 +122,9 @@ const deleteCategory = async (req, res, next) => {
       return next(new AppError('Category not found', 404));
     }
 
-    const bookCount = await Book.countDocuments({ category: category._id });
+    const bookCount = await Book.countDocuments({
+      $or: [{ category: category._id }, { tags: category.name }],
+    });
     if (bookCount > 0) {
       return next(
         new AppError(`Cannot delete category. ${bookCount} book(s) are assigned to it.`, 400)

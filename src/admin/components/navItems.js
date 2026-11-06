@@ -3,6 +3,8 @@
 import {
   BookOpen,
   LayoutDashboard,
+  Mail,
+  Newspaper,
   ShoppingCart,
   Tags,
   Users,
@@ -13,8 +15,10 @@ export const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Books', to: '/admin/books', icon: BookOpen },
   { label: 'Categories', to: '/admin/categories', icon: Tags },
+  { label: 'Blog', to: '/admin/blog', icon: Newspaper },
   { label: 'Orders', to: '/admin/orders', icon: ShoppingCart },
   { label: 'Users', to: '/admin/users', icon: Users },
+  { label: 'Messages', to: '/admin/messages', icon: Mail },
   { label: 'Settings', to: '/admin/settings', icon: Settings },
 ]
 

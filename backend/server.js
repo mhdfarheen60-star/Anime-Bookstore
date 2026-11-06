@@ -1,51 +1,83 @@
+import dns from 'node:dns';
 import express from 'express';
+
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
+import mongoose from 'mongoose';
+import 'dotenv/config';
+import { UPLOADS_DIR } from './utils/coverStorage.js';
 
 import connectDB from './config/db.js';
 import { globalErrorHandler, notFound } from './middleware/errorMiddleware.js';
 import { sanitizeInput } from './middleware/validateMiddleware.js';
-import { apiLimiter, authLimiter, adminLimiter } from './middleware/rateLimiter.js';
+import { apiLimiter, authLimiter, adminLimiter, paymentLimiter } from './middleware/rateLimiter.js';
+import { csrfProtection } from './utils/csrf.js';
 
 import authRoutes from './routes/authRoutes.js';
 import bookRoutes from './routes/bookRoutes.js';
+import blogRoutes from './routes/blogRoutes.js';
 import categoryRoutes from './routes/categoryRoutes.js';
 import cartRoutes from './routes/cartRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import adminOrderRoutes from './routes/adminOrderRoutes.js';
-
-dotenv.config();
+import wishlistRoutes from './routes/wishlistRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import contactRoutes from './routes/contactRoutes.js';
 
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-// Connect to database
-connectDB();
+// Fail fast in production when critical configuration is missing or weak.
+// Running with a default JWT secret or no database credentials is a silent
+// security failure, so we refuse to boot instead.
+if (process.env.NODE_ENV === 'production') {
+  const problems = [];
+  if (!process.env.MONGO_URI) problems.push('MONGO_URI is not set');
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    problems.push('JWT_SECRET is missing or shorter than 32 characters');
+  }
+  if (problems.length) {
+    console.error(`Refusing to start in production:\n - ${problems.join('\n - ')}`);
+    process.exit(1);
+  }
+}
 
-// Security middleware
+// Security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy,
+// HSTS in production, and more). /uploads images are consumed cross-origin by
+// the SPA in development, so CORP stays cross-origin; everything else keeps
+// helmet's strict defaults including a default-src 'self' CSP.
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false,
 }));
 
-// CORS configuration
+// CORS configuration. CLIENT_URL may hold several comma-separated origins.
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 const corsOptions = {
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // X-CSRF-Token is required on every mutating request, so preflights must allow it.
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
 };
 app.use(cors(corsOptions));
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing. Raw JSON is required for Stripe webhook signature verification.
+// Limits are small: every large payload in this app is an image with its own
+// raw-parser limit mounted on the specific route.
+app.use('/api/payments/webhook', express.raw({ type: 'application/json', limit: '256kb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
+
+// CSRF protection for cookie-authenticated mutating requests. Bearer-token
+// requests and pre-session auth endpoints are exempt (see utils/csrf.js).
+app.use(csrfProtection);
 
 // Input sanitization
 app.use(sanitizeInput);
@@ -57,6 +89,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 app.use('/api/auth', authLimiter);
 app.use('/api/admin/dashboard', adminLimiter);
+app.use('/api/payments', paymentLimiter);
 app.use('/api', apiLimiter);
 
 // Logging
@@ -64,22 +97,34 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// Admin-uploaded cover images. Filenames are random UUIDs, so they can be cached hard.
+app.use('/uploads', express.static(UPLOADS_DIR, {
+  maxAge: '30d',
+  immutable: true,
+  fallthrough: false,
+}));
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'API is running',
+  const databaseConnected = mongoose.connection.readyState === 1;
+  res.status(databaseConnected ? 200 : 503).json({
+    success: databaseConnected,
+    message: 'Backend is running',
+    database: databaseConnected ? 'Connected' : 'Disconnected',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
   });
 });
 
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/books', bookRoutes);
+app.use('/api/blog', blogRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/wishlist', wishlistRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api', contactRoutes);
 app.use('/api/admin/users', userRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
@@ -90,22 +135,35 @@ app.use(notFound);
 // Global error handler
 app.use(globalErrorHandler);
 
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
-});
+  // Listen only after MongoDB is connected, so no request reaches a dead database
+  const PORT = process.env.PORT || 5000;
+  const startServer = async () => {
+    console.log('Loading environment variables...');
+    try {
+      await connectDB();
+    } catch (err) {
+      console.error('MongoDB connection failed, starting server anyway:', err.message);
+    }
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err);
-  server.close(() => process.exit(1));
-});
+  const server = app.listen(PORT, () => {
+    console.log(`Backend Server Running on Port ${PORT} (${process.env.NODE_ENV || 'development'} mode)`);
+    console.log(`Health check: http://localhost:${PORT}/api/health`);
+  });
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  // Handle unhandled promise rejections
+  process.on('unhandledRejection', (err) => {
+    console.error('Unhandled Rejection:', err);
+    server.close(() => process.exit(1));
+  });
+
+  // Handle uncaught exceptions
+  process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1);
+  });
+};
+
+startServer().catch((error) => {
+  console.error(`Startup failed: ${error.message}`);
   process.exit(1);
 });
-
-export default app;

@@ -20,7 +20,8 @@ const getDashboardStats = async (req, res, next) => {
       User.countDocuments(),
       Order.countDocuments(),
       Order.countDocuments({ status: 'pending' }),
-      Book.find({ isActive: true, stock: { $lte: 10, $gt: 0 } })
+      // Out-of-stock (0) books are the most urgent case – include them.
+      Book.find({ isActive: true, stock: { $lte: 10, $gte: 0 } })
         .select('title stock')
         .sort({ stock: 1 })
         .limit(10)

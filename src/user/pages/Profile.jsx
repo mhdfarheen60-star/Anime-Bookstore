@@ -1,151 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faUser } from '@fortawesome/free-solid-svg-icons'
+import { faUser, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { useAuth } from '../../context/useAuth'
 import { api } from '../../api/client'
 import { formatPrice } from '../../utils/format'
+import { resolveCoverUrl } from '../../utils/coverUrl'
 
-const TABS = [
-  { id: 'sell', label: 'Sell Book' },
-  { id: 'status', label: 'Book Status' },
-  { id: 'history', label: 'Purchase History' },
-]
+// The Book Details form sits on a white card inside the dark storefront, so the
+// inputs carry their own dark text colour. Without it they inherit the page's
+// light text and the typed values (and the placeholders) disappear.
+const inputClass =
+  'w-full rounded-md border border-line bg-surface p-3 text-moon outline-none transition placeholder:text-mist focus:border-sakura focus:bg-panel focus:ring-4 focus:ring-sakura/15'
 
-const FIELDS = [
-  { name: 'title', label: 'Title', placeholder: 'Enter book title', required: true },
-  { name: 'publisher', label: 'Publisher', placeholder: 'Enter publisher' },
-  { name: 'author', label: 'Author', placeholder: 'Enter author', required: true },
-  { name: 'language', label: 'Language', placeholder: 'Enter language' },
-  { name: 'pages', label: 'No. of Pages', type: 'number', placeholder: 'Enter number of pages' },
-  { name: 'isbn', label: 'ISBN', placeholder: 'Enter ISBN' },
-  { name: 'category', label: 'Category', placeholder: 'Enter category' },
-  { name: 'price', label: 'Price', type: 'number', placeholder: 'Enter price', required: true },
-  { name: 'discountPrice', label: 'Discount Price', type: 'number', placeholder: 'Enter discount price' },
-  { name: 'imageUrl', label: 'Image URL', placeholder: 'Paste image URL' },
-]
-
-const EMPTY_FORM = Object.fromEntries([...FIELDS.map((f) => [f.name, '']), ['abstract', '']])
-
-const INITIAL_LISTINGS = [
-  {
-    id: 'l1',
-    title: 'The Midnight Library',
-    author: 'Matt Haig',
-    price: 499,
-    abstract:
-      'A novel about all the choices that go into a life well lived. It follows a woman who finds herself in a mysterious library between life and death, where each book represents a different path her life could have taken.',
-    image: 'https://images-na.ssl-images-amazon.com/images/I/81J6w6Y5fVL.jpg',
-  },
-  {
-    id: 'l2',
-    title: 'Atomic Habits',
-    author: 'James Clear',
-    price: 599,
-    abstract:
-      'A practical guide about building good habits and breaking bad ones through small, consistent changes.',
-    image: 'https://images-na.ssl-images-amazon.com/images/I/91bYsX41DVL.jpg',
-  },
-]
-
-const rupees = (n) => `₹${Number(n).toLocaleString('en-IN')}`
-const inputClass = 'w-full rounded border border-gray-300 p-3 outline-none focus:border-blue-900'
-
-function BookRow({ book, children, footer }) {
-  return (
-    <article className="flex min-h-[280px] flex-col justify-between gap-8 rounded-md bg-gray-100 p-6 shadow-sm md:flex-row md:p-8">
-      <div className="flex-1">
-        <h2 className="text-2xl font-bold text-gray-800">{book.title}</h2>
-        <p className="mt-2 text-lg text-gray-800">{book.author}</p>
-        <p className="mt-2 text-lg font-semibold text-blue-600">{rupees(book.price)}</p>
-        {book.abstract && <p className="mt-3 leading-7 text-gray-700">{book.abstract}</p>}
-        {footer}
-      </div>
-      <div className="flex flex-col items-center justify-center md:w-55">
-        {book.image ? (
-          <img src={book.image} alt={book.title} loading="lazy" decoding="async" className="h-55 w-47.5 rounded object-cover" />
-        ) : (
-          <div className="flex h-55 w-47.5 items-center justify-center rounded bg-gray-200 text-sm text-gray-500">No image</div>
-        )}
-        {children}
-      </div>
-    </article>
-  )
-}
-
-function SellForm({ onSubmit }) {
-  const [form, setForm] = useState(EMPTY_FORM)
-  const [picked, setPicked] = useState(null)
-  const keepUrl = useRef('')
-
-  useEffect(
-    () => () => {
-      if (picked && picked.url !== keepUrl.current) URL.revokeObjectURL(picked.url)
-    },
-    [picked],
-  )
-
-  const handleFile = (e) => {
-    const file = e.target.files?.[0]
-    setPicked(file ? { name: file.name, url: URL.createObjectURL(file) } : null)
-  }
-
-  const handleChange = (e) => setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
-
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    keepUrl.current = picked?.url ?? ''
-    onSubmit({ ...form, image: picked?.url || form.imageUrl })
-    setForm(EMPTY_FORM)
-    setPicked(null)
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-6 shadow-md md:p-10">
-      <h2 className="mb-10 text-center text-3xl font-bold text-blue-900">Book Details</h2>
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {FIELDS.map(({ name, label, ...rest }) => (
-          <div key={name}>
-            <label htmlFor={name} className="mb-2 block font-semibold text-gray-700">{label}</label>
-            <input id={name} name={name} value={form[name]} onChange={handleChange}
-              type={rest.type ?? 'text'} min={rest.type === 'number' ? 0 : undefined}
-              placeholder={rest.placeholder} required={rest.required} className={inputClass} />
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-6">
-        <label htmlFor="abstract" className="mb-2 block font-semibold text-gray-700">Abstract</label>
-        <textarea id="abstract" name="abstract" rows="5" value={form.abstract} onChange={handleChange}
-          placeholder="Enter book abstract" className={`${inputClass} resize-none`} />
-      </div>
-
-      <div className="mt-8">
-        <span className="mb-3 block font-semibold text-gray-700">Upload Book Image</span>
-        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-blue-300 bg-blue-50 p-8">
-          {picked ? (
-            <img src={picked.url} alt="Selected book cover" className="mb-4 h-40 rounded object-cover" />
-          ) : (
-            <div className="mb-3 text-5xl text-blue-700" aria-hidden="true">↑</div>
-          )}
-          <p className="mb-4 text-gray-600">{picked ? picked.name : 'Click here to upload your book image'}</p>
-          <label className="cursor-pointer bg-blue-900 px-6 py-2 text-white hover:bg-blue-800">
-            Choose Image
-            <input type="file" accept="image/*" className="hidden" onChange={handleFile} />
-          </label>
-        </div>
-      </div>
-
-      <div className="mt-10 flex justify-center">
-        <button type="submit" className="bg-blue-900 px-12 py-3 text-lg font-semibold text-white hover:bg-blue-800">
-          Submit
-        </button>
-      </div>
-    </form>
-  )
-}
-
-function OrderRow({ order }) {
+function OrderRow({ order, onViewDetails }) {
   const statusColors = {
     pending: 'bg-yellow-100 text-yellow-800',
     confirmed: 'bg-blue-100 text-blue-800',
@@ -161,103 +29,387 @@ function OrderRow({ order }) {
   };
 
   return (
-    <article className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+    <article className="surface-light rounded-lg border border-line bg-panel p-6 text-moon shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-4 flex-wrap">
-            <span className="font-semibold text-gray-800">Order #{order.orderNumber?.slice(-8) || order._id.slice(-8)}</span>
-            <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
+            <span className="font-semibold text-moon">Order #{order.orderNumber?.slice(-8) || order._id.slice(-8)}</span>
+            <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusColors[order.status] || 'bg-gray-100 text-moon'}`}>
               {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
             </span>
-            <span className="text-sm text-gray-500">{formatDate(order.createdAt)}</span>
+            <span className="text-sm text-mist">{formatDate(order.createdAt)}</span>
           </div>
-          <p className="mt-2 text-sm text-gray-600">
+          <p className="mt-2 text-sm text-mist">
             {order.items.length} item{order.items.length > 1 ? 's' : ''} • {formatPrice(order.total)}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
-            className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            type="button"
+            onClick={() => onViewDetails(order)}
+            className="px-4 py-2 rounded-lg border border-line text-sm font-medium text-moon/80 hover:bg-surface"
           >
             View Details
           </button>
-          {order.status === 'pending' || order.status === 'confirmed' ? (
-            <button className="px-4 py-2 rounded-lg bg-red-600 text-sm font-medium text-white hover:bg-red-700">
-              Cancel
-            </button>
-          ) : null}
         </div>
       </div>
     </article>
   );
 }
 
+const CANCELLABLE = ['pending', 'confirmed']
+
+function OrderDetailsModal({ order, onClose, onCancelOrder, cancelling, cancelError }) {
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
+
+  if (!order) return null
+
+  const formatDate = (dateStr) =>
+    new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+
+  const statusColors = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    confirmed: 'bg-blue-100 text-blue-800',
+    processing: 'bg-purple-100 text-purple-800',
+    shipped: 'bg-indigo-100 text-indigo-800',
+    delivered: 'bg-green-100 text-green-800',
+    cancelled: 'bg-red-100 text-red-800',
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-moon/35 p-4 py-10"
+      role="presentation"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Order #${String(order.orderNumber || order._id).slice(-8)}`}
+        className="w-full max-w-2xl rounded-xl bg-panel text-moon shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-line px-6 py-4">
+          <h3 className="text-lg font-bold text-moon">
+            Order #{String(order.orderNumber || order._id).slice(-8)}
+          </h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-mist hover:text-moon/80">
+            <FontAwesomeIcon icon={faXmark} />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-6 py-5">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-mist">Placed</p>
+              <p className="mt-1 text-sm text-moon/80">{formatDate(order.createdAt)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-mist">Payment</p>
+              <p className="mt-1 text-sm uppercase text-moon/80">{order.paymentMethod || 'cod'}</p>
+              <p className="text-xs text-mist">{order.paymentStatus}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-mist">Status</p>
+              <span className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-medium ${statusColors[order.status] || 'bg-gray-100 text-moon'}`}>
+                {order.status?.charAt(0).toUpperCase() + order.status?.slice(1)}
+              </span>
+            </div>
+          </div>
+
+          {order.shippingAddress && (
+            <div className="rounded-lg border border-line p-4">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-mist">Ship to</p>
+              <p className="mt-1 text-sm font-semibold text-moon">{order.shippingAddress.name}</p>
+              <p className="text-sm text-mist">
+                {order.shippingAddress.street}, {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zipCode}
+              </p>
+              <p className="text-sm text-mist">{order.shippingAddress.country}</p>
+              <p className="mt-1 text-sm text-mist">{order.shippingAddress.phone}</p>
+            </div>
+          )}
+
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-mist">Items</p>
+            <ul className="mt-2 divide-y divide-gray-100 rounded-lg border border-line">
+              {(order.items ?? []).map((item, index) => (
+                <li key={item.book || index} className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-moon">{item.title}</p>
+                    <p className="text-xs text-mist">{item.author}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm text-mist">{item.quantity} × {formatPrice(item.price)}</p>
+                    <p className="text-sm font-semibold text-moon">{formatPrice(item.price * item.quantity)}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="rounded-lg bg-surface p-4 text-sm text-moon/80">
+            <div className="flex justify-between"><span className="text-mist">Subtotal</span><span>{formatPrice(order.subtotal)}</span></div>
+            <div className="flex justify-between"><span className="text-mist">Shipping</span><span>{order.shippingFee === 0 ? 'Free' : formatPrice(order.shippingFee)}</span></div>
+            <div className="flex justify-between"><span className="text-mist">Tax</span><span>{formatPrice(order.tax)}</span></div>
+            <div className="flex justify-between border-t border-line pt-2 font-bold"><span>Total</span><span>{formatPrice(order.total)}</span></div>
+          </div>
+
+          {cancelError && (
+            <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {cancelError}
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+            {CANCELLABLE.includes(order.status) ? (
+              confirmingCancel ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-medium text-moon/80">Cancel this order?</span>
+                  <button
+                    type="button"
+                    disabled={cancelling}
+                    onClick={() => onCancelOrder(order)}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                  >
+                    {cancelling ? 'Cancelling…' : 'Yes, cancel it'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cancelling}
+                    onClick={() => setConfirmingCancel(false)}
+                    className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-moon/80 hover:bg-surface disabled:opacity-60"
+                  >
+                    Keep my order
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setConfirmingCancel(true); }}
+                  className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+                >
+                  Cancel order
+                </button>
+              )
+            ) : (
+              <span aria-hidden="true" />
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-moon/80 hover:bg-surface"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const EMPTY_ADDRESS = { street: '', city: '', state: '', zipCode: '', country: '' }
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024
+const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const BIO_MAX = 500
+
+const formFromUser = (user) => ({
+  name: user?.name || '',
+  username: user?.username || '',
+  bio: user?.bio || '',
+  avatar: user?.avatar || '',
+  address: { ...EMPTY_ADDRESS, ...user?.address },
+})
+
+function Avatar({ src, name, className = '' }) {
+  return (
+    <div className={`flex items-center justify-center overflow-hidden rounded-full bg-gray-200 text-mist ${className}`}>
+      {src ? <img src={src} alt={name || 'Profile picture'} className="h-full w-full object-cover" /> : <FontAwesomeIcon icon={faUser} />}
+    </div>
+  )
+}
+
 function Profile() {
-  const { user, updateProfile, changePassword } = useAuth();
-  const [tab, setTab] = useState('sell')
-  const [listings, setListings] = useState(INITIAL_LISTINGS)
+  const { user, updateProfile, uploadAvatar, changePassword } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [orders, setOrders] = useState([])
   const [loadingOrders, setLoadingOrders] = useState(false)
+  const [ordersError, setOrdersError] = useState('')
+  const [activeOrder, setActiveOrder] = useState(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState('')
+  const [paymentBanner, setPaymentBanner] = useState('')
   const [editMode, setEditMode] = useState(false)
-  const [profileForm, setProfileForm] = useState({
-    name: '',
-    phone: '',
-    address: { street: '', city: '', state: '', zipCode: '', country: '' },
-  })
-  const [passwordForm, setPasswordForm] = useState({
-    currentPassword: '',
-    newPassword: '',
-    confirmPassword: '',
-  })
+  const [saving, setSaving] = useState(false)
   const [messages, setMessages] = useState({ success: '', error: '' })
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
+  const [profileForm, setProfileForm] = useState(() => formFromUser(user))
+  // A newly chosen picture is held locally and only uploaded on Save, so
+  // Cancel really discards it.
+  const [avatarFile, setAvatarFile] = useState(null)
+  const [avatarPreview, setAvatarPreview] = useState('')
+  const fileInputRef = useRef(null)
 
-  const addListing = (values) => {
-    setListings((prev) => [{ ...values, id: crypto.randomUUID() }, ...prev])
-    setTab('status')
+  useEffect(() => {
+    if (!avatarFile) return undefined
+    const url = URL.createObjectURL(avatarFile)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAvatarPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [avatarFile])
+
+  const openEditor = () => {
+    setProfileForm(formFromUser(user))
+    setAvatarFile(null)
+    setAvatarPreview('')
+    setMessages({ success: '', error: '' })
+    setEditMode(true)
   }
-  const removeListing = (id) => setListings((prev) => prev.filter((b) => b.id !== id))
+
+  const closeEditor = () => {
+    setAvatarFile(null)
+    setAvatarPreview('')
+    setEditMode(false)
+  }
+
+  const handleAvatarPick = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!AVATAR_TYPES.includes(file.type)) {
+      setMessages({ success: '', error: 'Choose a JPEG, PNG, WebP or GIF image.' })
+      return
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setMessages({ success: '', error: 'Profile picture must be 2 MB or smaller.' })
+      return
+    }
+    setMessages({ success: '', error: '' })
+    setAvatarFile(file)
+  }
+
+  const removeAvatar = () => {
+    setAvatarFile(null)
+    setAvatarPreview('')
+    setProfileForm((f) => ({ ...f, avatar: '' }))
+  }
 
   const fetchOrders = async () => {
     setLoadingOrders(true);
+    setOrdersError('');
     try {
       const response = await api.getMyOrders();
       if (response.success) {
         setOrders(response.data.orders);
+      } else {
+        setOrdersError(response.message || 'Could not load your orders');
       }
     } catch (error) {
-      console.error('Failed to fetch orders:', error);
+      setOrdersError(error.message || 'Could not load your orders');
     } finally {
       setLoadingOrders(false);
     }
   };
 
-  // Seed the editable form once the user is known. Guarded on the id so a
-  // later unrelated re-render does not overwrite what the user is typing.
+  // Load orders once the user is known. Guarded on the id so unrelated
+  // re-renders (e.g. a profile save) do not refetch.
   useEffect(() => {
     if (!user) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setProfileForm({
-      name: user.name || '',
-      phone: user.phone || '',
-      address: user.address || { street: '', city: '', state: '', zipCode: '', country: '' },
-    });
     fetchOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Stripe Checkout redirects back here with ?session_id=... (success) or the
+  // cart carries ?cancelled=1; also honour the legacy ?tab=history deep link.
+  // Params are stripped from the URL once handled so a refresh stays quiet.
+  useEffect(() => {
+    const sessionId = searchParams.get('session_id');
+    const cancelled = searchParams.get('cancelled');
+    const tab = searchParams.get('tab');
+    if (!sessionId && !cancelled && tab !== 'history') return;
+
+    if (sessionId) setPaymentBanner('Payment successful! Your order is being processed and will appear in your history shortly.');
+    else if (cancelled) setPaymentBanner('Your payment was cancelled. Your cart is unchanged.');
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('session_id');
+    next.delete('cancelled');
+    next.delete('tab');
+    setSearchParams(next, { replace: true });
+
+    document.getElementById('purchase-history')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
+
+  // Close the order dialog with Escape.
+  useEffect(() => {
+    if (!activeOrder) return undefined;
+    const onKey = (event) => {
+      if (event.key === 'Escape') setActiveOrder(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [activeOrder]);
+
+  // Pull fresh details when the modal opens so status/payment are current.
+  const openOrderDetails = async (order) => {
+    setCancelError('');
+    setActiveOrder(order);
+    try {
+      const response = await api.getOrderById(order._id);
+      if (response.success) setActiveOrder(response.data.order);
+    } catch {
+      // Keep the list-level data if the detail call fails.
+    }
+  };
+
+  const handleCancelOrder = async (order) => {
+    setCancelling(true);
+    setCancelError('');
+    try {
+      const response = await api.cancelOrder(order._id);
+      if (response.success) {
+        const cancelled = response.data?.order ?? { ...order, status: 'cancelled' };
+        setActiveOrder(cancelled);
+        setOrders((prev) => prev.map((o) => (o._id === order._id ? { ...o, ...cancelled } : o)));
+      } else {
+        setCancelError(response.message || 'Could not cancel the order');
+      }
+    } catch (error) {
+      setCancelError(error.message || 'Could not cancel the order');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setMessages({ success: '', error: '' });
+    setSaving(true);
     try {
-      const response = await updateProfile(profileForm);
+      const payload = { ...profileForm, username: profileForm.username.trim().toLowerCase() };
+      if (avatarFile) {
+        const uploaded = await uploadAvatar(avatarFile);
+        if (!uploaded.success) {
+          setMessages({ success: '', error: uploaded.message });
+          return;
+        }
+        // The upload already saved the new picture; sending the old value
+        // here would overwrite it.
+        delete payload.avatar;
+      }
+      const response = await updateProfile(payload);
       if (response.success) {
         setMessages({ success: 'Profile updated successfully', error: '' });
-        setEditMode(false);
+        closeEditor();
       } else {
         setMessages({ success: '', error: response.message });
       }
     } catch (error) {
       setMessages({ success: '', error: error.message });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -284,208 +436,273 @@ function Profile() {
   return (
     <>
       {/* Cover + avatar */}
-      <div className="h-50 w-full bg-blue-950" />
+      <div className="h-50 w-full border-b border-line bg-[#eff6ff]" />
       <div className="mx-auto max-w-6xl px-6">
-        <div className="-mt-20 flex h-40 w-40 items-center justify-center rounded-full border-4 border-white bg-gray-200 text-6xl text-gray-400 sm:h-48 sm:w-48">
-          <FontAwesomeIcon icon={faUser} />
-        </div>
+        <Avatar src={resolveCoverUrl(user?.avatar)} name={user?.name}
+          className="-mt-20 h-40 w-40 border-4 border-white text-6xl sm:h-48 sm:w-48" />
 
-        <div className="my-5 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">{user?.name || 'User Name'}</h1>
+        <div className="my-5 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-moon">{user?.name || 'User Name'}</h1>
+            {user?.username && (
+              <p className="text-mist">@{user.username}</p>
+            )}
+            {user?.bio && (
+              <p className="mt-1 whitespace-pre-line wrap-break-word text-mist">{user.bio}</p>
+            )}
+          </div>
           <button
             type="button"
-            onClick={() => setEditMode(!editMode)}
-            className="rounded bg-blue-900 px-5 py-2 text-white hover:bg-blue-800"
+            onClick={editMode ? closeEditor : openEditor}
+            aria-expanded={editMode}
+            className="shrink-0 rounded-md bg-sakura px-5 py-2 text-white transition-colors hover:bg-[#2563EB]"
           >
             {editMode ? 'Cancel' : 'Edit Profile'}
           </button>
         </div>
 
+        {paymentBanner && (
+          <div role="status" className="mb-4 flex items-start justify-between gap-4 rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
+            <span>{paymentBanner}</span>
+            <button type="button" onClick={() => setPaymentBanner('')} aria-label="Dismiss" className="shrink-0 text-green-700 hover:text-green-900">
+              <FontAwesomeIcon icon={faXmark} />
+            </button>
+          </div>
+        )}
         {messages.success && (
-          <div className="mb-4 p-4 rounded-lg bg-green-100 text-green-800">{messages.success}</div>
+          <div role="status" className="mb-4 p-4 rounded-lg bg-green-100 text-green-800">{messages.success}</div>
         )}
         {messages.error && (
-          <div className="mb-4 p-4 rounded-lg bg-red-100 text-red-800">{messages.error}</div>
+          <div role="alert" className="mb-4 p-4 rounded-lg bg-red-100 text-red-800">{messages.error}</div>
         )}
 
-        <p className="mt-5 leading-7 text-gray-600">
+        {editMode && (
+          <div className="surface-light mb-8 rounded-lg border border-line bg-panel p-6 text-moon shadow-sm">
+            <h2 className="mb-6 text-xl font-bold text-moon">Edit Profile</h2>
+            <form onSubmit={handleProfileUpdate} className="space-y-5">
+              <div>
+                <span className="mb-2 block font-semibold text-moon/80">Profile Picture</span>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <Avatar src={avatarPreview || resolveCoverUrl(profileForm.avatar)} name={profileForm.name}
+                    className="h-24 w-24 shrink-0 text-4xl" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => fileInputRef.current?.click()} disabled={saving}
+                        className="rounded-lg bg-sakura px-4 py-2 text-sm text-white transition-colors hover:bg-[#2563EB] disabled:opacity-60">
+                        Upload photo
+                      </button>
+                      {(avatarFile || profileForm.avatar) && (
+                        <button type="button" onClick={removeAvatar} disabled={saving}
+                          className="rounded-lg border border-line px-4 py-2 text-sm text-moon/80 hover:bg-surface disabled:opacity-60">
+                          Remove
+                        </button>
+                      )}
+                      <input ref={fileInputRef} type="file" accept={AVATAR_TYPES.join(',')} onChange={handleAvatarPick} className="hidden" />
+                    </div>
+                    {avatarFile ? (
+                      <p className="text-sm text-mist">{avatarFile.name} will be uploaded when you save.</p>
+                    ) : (
+                      <input
+                        type="url"
+                        aria-label="Profile picture URL"
+                        value={profileForm.avatar.startsWith('/uploads/') ? '' : profileForm.avatar}
+                        onChange={(e) => setProfileForm({ ...profileForm, avatar: e.target.value })}
+                        className={inputClass}
+                        placeholder="…or paste an image URL (https://…)"
+                      />
+                    )}
+                    <p className="text-xs text-mist">JPEG, PNG, WebP or GIF, up to 2 MB.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label htmlFor="profile-name" className="mb-2 block font-semibold text-moon/80">Full Name</label>
+                  <input
+                    id="profile-name"
+                    type="text"
+                    value={profileForm.name}
+                    onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                    className={inputClass}
+                    required
+                    minLength={2}
+                    maxLength={50}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="profile-username" className="mb-2 block font-semibold text-moon/80">Username</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-mist">@</span>
+                    <input
+                      id="profile-username"
+                      type="text"
+                      value={profileForm.username}
+                      onChange={(e) => setProfileForm({ ...profileForm, username: e.target.value.toLowerCase() })}
+                      className={`${inputClass} pl-8`}
+                      placeholder="your_username"
+                      minLength={3}
+                      maxLength={30}
+                      pattern="[a-z0-9_]+"
+                      title="3-30 characters: lowercase letters, numbers and underscores"
+                      autoComplete="username"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-mist">3-30 characters: lowercase letters, numbers, underscores.</p>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="profile-bio" className="mb-2 block font-semibold text-moon/80">Bio</label>
+                <textarea
+                  id="profile-bio"
+                  value={profileForm.bio}
+                  onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
+                  className={`${inputClass} resize-none`}
+                  rows={3}
+                  placeholder="Tell us about yourself"
+                  maxLength={BIO_MAX}
+                />
+                <p className="mt-1 text-right text-xs text-mist">{profileForm.bio.length}/{BIO_MAX}</p>
+              </div>
+
+              <div className="border-t border-line pt-4">
+                <h3 className="mb-4 font-semibold text-moon/80">Shipping Address</h3>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {[
+                    ['street', 'Street'],
+                    ['city', 'City'],
+                    ['state', 'State'],
+                    ['zipCode', 'ZIP Code'],
+                    ['country', 'Country'],
+                  ].map(([key, label]) => (
+                    <div key={key}>
+                      <label htmlFor={`address-${key}`} className="mb-2 block font-semibold text-moon/80">{label}</label>
+                      <input
+                        id={`address-${key}`}
+                        type="text"
+                        value={profileForm.address[key]}
+                        onChange={(e) => setProfileForm({ ...profileForm, address: { ...profileForm.address, [key]: e.target.value } })}
+                        className={inputClass}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-line pt-4">
+                <button type="button" onClick={closeEditor} disabled={saving}
+                  className="rounded-lg border border-line px-6 py-2 text-moon/80 hover:bg-surface disabled:opacity-60">
+                  Cancel
+                </button>
+                <button type="submit" disabled={saving}
+                  className="rounded-lg bg-sakura px-6 py-2 text-white transition-colors hover:bg-[#2563EB] disabled:opacity-60">
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <p className="mt-5 leading-7 text-mist">
           {user?.email}
         </p>
 
-        {/* Tabs */}
-        <div role="tablist" className="my-10 flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-0">
-          {TABS.map(({ id, label }) => (
-            <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
-              className={`w-55 border border-blue-900 py-4 font-semibold transition-colors sm:w-50 ${
-                tab === id ? 'bg-blue-900 text-white' : 'bg-white text-blue-900 hover:bg-blue-50'
-              }`}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className="mx-auto mb-12 max-w-262.5 space-y-6 px-4">
-          {tab === 'sell' && <SellForm onSubmit={addListing} />}
-
-          {tab === 'status' &&
-            (listings.length ? (
-              listings.map((book) => (
-                <BookRow key={book.id} book={book}>
-                  <button type="button" onClick={() => removeListing(book.id)}
-                    className="mt-4 bg-red-600 px-7 py-2 text-white hover:bg-red-700">
-                    Delete
-                  </button>
-                </BookRow>
-              ))
-            ) : (
-              <p className="text-center text-gray-600">You haven't listed any books yet.</p>
-            ))}
-
-          {tab === 'history' && (
-            <>
-              {editMode && (
-                <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-md">
-                  <h2 className="mb-6 text-xl font-bold text-gray-800">Edit Profile</h2>
-                  <form onSubmit={handleProfileUpdate} className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="mb-2 block font-semibold text-gray-700">Full Name</label>
-                        <input
-                          type="text"
-                          value={profileForm.name}
-                          onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                          className={inputClass}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-2 block font-semibold text-gray-700">Phone</label>
-                        <input
-                          type="tel"
-                          value={profileForm.phone}
-                          onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
-                          className={inputClass}
-                        />
-                      </div>
-                    </div>
-                    <div className="border-t border-gray-200 pt-4">
-                      <h3 className="mb-4 font-semibold text-gray-700">Shipping Address</h3>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                          <label className="mb-2 block font-semibold text-gray-700">Street</label>
-                          <input
-                            type="text"
-                            value={profileForm.address.street}
-                            onChange={(e) => setProfileForm({ ...profileForm, address: { ...profileForm.address, street: e.target.value } })}
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-2 block font-semibold text-gray-700">City</label>
-                          <input
-                            type="text"
-                            value={profileForm.address.city}
-                            onChange={(e) => setProfileForm({ ...profileForm, address: { ...profileForm.address, city: e.target.value } })}
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-2 block font-semibold text-gray-700">State</label>
-                          <input
-                            type="text"
-                            value={profileForm.address.state}
-                            onChange={(e) => setProfileForm({ ...profileForm, address: { ...profileForm.address, state: e.target.value } })}
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-2 block font-semibold text-gray-700">ZIP Code</label>
-                          <input
-                            type="text"
-                            value={profileForm.address.zipCode}
-                            onChange={(e) => setProfileForm({ ...profileForm, address: { ...profileForm.address, zipCode: e.target.value } })}
-                            className={inputClass}
-                          />
-                        </div>
-                        <div>
-                          <label className="mb-2 block font-semibold text-gray-700">Country</label>
-                          <input
-                            type="text"
-                            value={profileForm.address.country}
-                            onChange={(e) => setProfileForm({ ...profileForm, address: { ...profileForm.address, country: e.target.value } })}
-                            className={inputClass}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-                      <button type="button" onClick={() => setEditMode(false)} className="px-6 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Cancel</button>
-                      <button type="submit" className="px-6 py-2 rounded-lg bg-blue-900 text-white hover:bg-blue-800">Save Changes</button>
-                    </div>
-                  </form>
+        <div className="mx-auto mb-12 max-w-262.5 space-y-8 px-4">
+          {/* My Orders */}
+          <section className="surface-light rounded-lg border border-line bg-panel p-6 text-moon shadow-sm">
+            <h2 className="mb-4 text-xl font-bold text-moon">My Orders</h2>
+            {loadingOrders ? (
+              <div className="text-center py-8 text-mist">Loading orders...</div>
+            ) : ordersError ? (
+              <div className="text-center py-8">
+                <p role="alert" className="text-red-700">{ordersError}</p>
+                <button type="button" onClick={fetchOrders} className="mt-3 rounded-lg border border-line px-4 py-2 text-sm text-moon/80 hover:bg-surface">
+                  Try again
+                </button>
+              </div>
+            ) : orders.length > 0 ? (
+              <>
+                <div className="space-y-4">
+                  {orders.slice(0, 3).map((order) => (
+                    <OrderRow key={order._id} order={order} onViewDetails={openOrderDetails} />
+                  ))}
                 </div>
-              )}
-              <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-md">
-                <h2 className="mb-6 text-xl font-bold text-gray-800">Change Password</h2>
-                <form onSubmit={handlePasswordChange} className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <div>
-                      <label className="mb-2 block font-semibold text-gray-700">Current Password</label>
-                      <input
-                        type="password"
-                        value={passwordForm.currentPassword}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
-                        className={inputClass}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 block font-semibold text-gray-700">New Password</label>
-                      <input
-                        type="password"
-                        value={passwordForm.newPassword}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                        className={inputClass}
-                        required
-                        minLength={8}
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 block font-semibold text-gray-700">Confirm New Password</label>
-                      <input
-                        type="password"
-                        value={passwordForm.confirmPassword}
-                        onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                        className={inputClass}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <button type="submit" className="px-6 py-2 rounded-lg bg-blue-900 text-white hover:bg-blue-800">Update Password</button>
-                  </div>
-                </form>
-              </div>
-              <div className="mt-6">
-                <h2 className="mb-4 text-xl font-bold text-gray-800">Order History</h2>
-                {loadingOrders ? (
-                  <div className="text-center py-8 text-gray-500">Loading orders...</div>
-                ) : orders.length > 0 ? (
-                  <div className="space-y-4">
-                    {orders.map((order) => (
-                      <OrderRow key={order._id} order={order} />
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-center text-gray-600 py-8">You haven't placed any orders yet.</p>
+                {orders.length > 3 && (
+                  <a href="#purchase-history" className="mt-4 inline-block font-medium text-electric hover:underline">View All Orders</a>
                 )}
+              </>
+            ) : (
+              <p className="text-center text-mist py-8">You haven't placed any orders yet.</p>
+            )}
+          </section>
+
+          {/* Purchase History */}
+          <section id="purchase-history" className="surface-light rounded-lg border border-line bg-panel p-6 text-moon shadow-sm scroll-mt-24">
+            <h2 className="mb-4 text-xl font-bold text-moon">Purchase History</h2>
+            {loadingOrders ? (
+              <div className="text-center py-8 text-mist">Loading orders...</div>
+            ) : ordersError ? (
+              <div className="text-center py-8">
+                <p role="alert" className="text-red-700">{ordersError}</p>
+                <button type="button" onClick={fetchOrders} className="mt-3 rounded-lg border border-line px-4 py-2 text-sm text-moon/80 hover:bg-surface">
+                  Try again
+                </button>
               </div>
-            </>
-          )}
+            ) : orders.length > 0 ? (
+              <div className="space-y-4">
+                {orders.map((order) => (
+                  <OrderRow key={order._id} order={order} onViewDetails={openOrderDetails} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-mist py-8">You haven't placed any orders yet.</p>
+            )}
+          </section>
+
+          {/* Account Settings */}
+          <section className="surface-light rounded-lg border border-line bg-panel p-6 text-moon shadow-sm">
+            <h2 className="mb-4 text-xl font-bold text-moon">Account Settings</h2>
+            <button type="button" onClick={openEditor} className="rounded-lg bg-sakura px-6 py-2 text-white transition-colors hover:bg-[#2563EB]">Edit Profile</button>
+          </section>
+
+          {/* Change Password */}
+          <section className="surface-light rounded-lg border border-line bg-panel p-6 text-moon shadow-sm">
+            <h2 className="mb-6 text-xl font-bold text-moon">Change Password</h2>
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                  <label className="mb-2 block font-semibold text-moon/80">Current Password</label>
+                  <input type="password" value={passwordForm.currentPassword} onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} className={inputClass} required />
+                </div>
+                <div>
+                  <label className="mb-2 block font-semibold text-moon/80">New Password</label>
+                  <input type="password" value={passwordForm.newPassword} onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className={inputClass} required minLength={8} />
+                </div>
+                <div>
+                  <label className="mb-2 block font-semibold text-moon/80">Confirm New Password</label>
+                  <input type="password" value={passwordForm.confirmPassword} onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className={inputClass} required />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button type="submit" className="px-6 py-2 rounded-lg bg-sakura text-white transition-colors hover:bg-[#2563EB]">Update Password</button>
+              </div>
+            </form>
+          </section>
         </div>
       </div>
+
+      {activeOrder && (
+        <OrderDetailsModal
+          order={activeOrder}
+          onClose={() => setActiveOrder(null)}
+          onCancelOrder={handleCancelOrder}
+          cancelling={cancelling}
+          cancelError={cancelError}
+        />
+      )}
     </>
-  )
+  );
 }
 
 export default Profile

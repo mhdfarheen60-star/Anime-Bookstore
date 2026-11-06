@@ -13,12 +13,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // When any request fails with a genuinely dead token, drop the session and
-  // send the user back to the login screen.
+  // When any request fails with a genuinely dead session, drop it and send
+  // the user back to the login screen.
   useEffect(() => {
     api.onUnauthorized = () => {
-      localStorage.removeItem('token');
-      api.clearToken();
+      api.clearCsrfToken();
       setUser(null);
       navigate('/login', { replace: true });
     };
@@ -27,28 +26,29 @@ export function AuthProvider({ children }) {
     };
   }, [navigate]);
 
-  const loadUser = useCallback(async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      api.setToken(token);
-      try {
-        const response = await api.getMe();
-        if (response.success) {
-          setUser(response.data.user);
-        } else {
-          localStorage.removeItem('token');
-          api.clearToken();
-        }
-      } catch {
-        localStorage.removeItem('token');
-        api.clearToken();
-      }
-    }
-    setLoading(false);
+  // Store the CSRF token returned by the auth endpoints.
+  const applyCsrf = useCallback((response) => {
+    const csrfToken = response?.data?.csrfToken;
+    if (csrfToken) api.setCsrfToken(csrfToken);
   }, []);
 
+  const loadUser = useCallback(async () => {
+    try {
+      const response = await api.getMe();
+      if (response.success) {
+        applyCsrf(response);
+        setUser(response.data.user);
+      }
+    } catch {
+      // No valid session cookie (or it expired): stay signed out.
+      api.clearCsrfToken();
+      setUser(null);
+    }
+    setLoading(false);
+  }, [applyCsrf]);
+
   // Restore the session on first mount. This is a one-off data fetch from
-  // localStorage + the API, not derived state.
+  // the API (the httpOnly cookie rides along automatically), not derived state.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- session bootstrap
     loadUser();
@@ -57,9 +57,19 @@ export function AuthProvider({ children }) {
   const login = async (email, password) => {
     const response = await api.login({ email, password });
     if (response.success) {
-      const { user, token } = response.data;
-      localStorage.setItem('token', token);
-      api.setToken(token);
+      applyCsrf(response);
+      const { user } = response.data;
+      setUser(user);
+      return { success: true, role: user.role };
+    }
+    return { success: false, message: response.message };
+  };
+
+  const loginWithGoogle = async (credential) => {
+    const response = await api.googleLogin(credential);
+    if (response.success) {
+      applyCsrf(response);
+      const { user } = response.data;
       setUser(user);
       return { success: true, role: user.role };
     }
@@ -69,9 +79,8 @@ export function AuthProvider({ children }) {
   const register = async (userData) => {
     const response = await api.register(userData);
     if (response.success) {
-      const { user, token } = response.data;
-      localStorage.setItem('token', token);
-      api.setToken(token);
+      applyCsrf(response);
+      const { user } = response.data;
       setUser(user);
       return { success: true, role: user.role };
     }
@@ -84,8 +93,7 @@ export function AuthProvider({ children }) {
     } catch {
       // Ignore logout errors
     }
-    localStorage.removeItem('token');
-    api.clearToken();
+    api.clearCsrfToken();
     setUser(null);
     navigate('/login');
   };
@@ -99,12 +107,19 @@ export function AuthProvider({ children }) {
     return { success: false, message: response.message };
   };
 
+  const uploadAvatar = async (file) => {
+    const response = await api.uploadAvatar(file);
+    if (response.success) {
+      setUser(response.data.user);
+      return { success: true, user: response.data.user };
+    }
+    return { success: false, message: response.message };
+  };
+
   const changePassword = async (data) => {
     const response = await api.changePassword(data);
     if (response.success) {
-      const { token } = response.data;
-      localStorage.setItem('token', token);
-      api.setToken(token);
+      applyCsrf(response);
       return { success: true };
     }
     return { success: false, message: response.message };
@@ -114,9 +129,11 @@ export function AuthProvider({ children }) {
     user,
     loading,
     login,
+    loginWithGoogle,
     register,
     logout,
     updateProfile,
+    uploadAvatar,
     changePassword,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',

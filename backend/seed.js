@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import User from './models/User.js';
 import Category from './models/Category.js';
 import Book from './models/Book.js';
+import { verifiedCovers } from './data/verifiedCovers.js';
+import { additionalBooks } from './data/additionalBooks.js';
 
 dotenv.config();
 
@@ -37,7 +39,6 @@ const books = [
     description: 'Saitama can defeat any enemy with a single punch, and the lack of a real challenge is starting to bore him.',
     price: 18,
     originalPrice: 22,
-    coverImage: 'https://m.media-amazon.com/images/I/814BNvQBD9L._SY466_.jpg',
     isbn: '978-1421585642',
     publisher: 'VIZ Media',
     publishedYear: 2016,
@@ -54,7 +55,6 @@ const books = [
     description: 'Yuji Itadori swallows a cursed finger and joins Tokyo Jujutsu High to fight the curses hunting humanity.',
     price: 20,
     originalPrice: 25,
-    coverImage: 'https://m.media-amazon.com/images/I/71vhbK3-YvL._SY466_.jpg',
     isbn: '978-1974718727',
     publisher: 'VIZ Media',
     publishedYear: 2020,
@@ -88,7 +88,6 @@ const books = [
     description: 'Tanjiro trains to become a demon slayer so he can turn his sister Nezuko back into a human.',
     price: 18,
     originalPrice: 22,
-    coverImage: 'https://m.media-amazon.com/images/I/51GKLFxjM5L._SY445_SX342_FMwebp_.jpg',
     isbn: '978-1974707523',
     publisher: 'VIZ Media',
     publishedYear: 2019,
@@ -105,7 +104,6 @@ const books = [
     description: 'Humanity lives behind towering walls until a colossal titan breaks through. Eren Yeager vows to wipe the titans out.',
     price: 12,
     originalPrice: 15,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1612620244',
     publisher: 'Kodansha Comics',
     publishedYear: 2012,
@@ -122,7 +120,6 @@ const books = [
     description: 'After a forbidden ritual costs them dearly, brothers Edward and Alphonse Elric search for the Philosopher\'s Stone.',
     price: 11,
     originalPrice: 14,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1591169208',
     publisher: 'VIZ Media',
     publishedYear: 2005,
@@ -139,7 +136,6 @@ const books = [
     description: 'A student finds a notebook that kills anyone whose name is written in it, and the detective L sets out to stop him.',
     price: 10,
     originalPrice: 13,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1421539645',
     publisher: 'VIZ Media',
     publishedYear: 2005,
@@ -156,7 +152,6 @@ const books = [
     description: 'In a world where nearly everyone has a superpower, Izuku Midoriya is born without one, until he meets the greatest hero.',
     price: 10,
     originalPrice: 13,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1421582696',
     publisher: 'VIZ Media',
     publishedYear: 2015,
@@ -173,7 +168,6 @@ const books = [
     description: 'Debt-ridden Denji merges with his chainsaw devil pet and joins a government team of devil hunters.',
     price: 10,
     originalPrice: 13,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1974709930',
     publisher: 'VIZ Media',
     publishedYear: 2019,
@@ -190,7 +184,6 @@ const books = [
     description: 'A spy, an assassin and a telepathic child pose as a family for a secret mission, each hiding the truth from the others.',
     price: 10,
     originalPrice: 13,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1974715467',
     publisher: 'VIZ Media',
     publishedYear: 2020,
@@ -207,7 +200,6 @@ const books = [
     description: 'The lone mercenary Guts swings an enormous sword through a brutal medieval world of demons and betrayal.',
     price: 30,
     originalPrice: 40,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1506716970',
     publisher: 'Dark Horse Manga',
     publishedYear: 2019,
@@ -224,7 +216,6 @@ const books = [
     description: 'A fictionalised retelling of Miyamoto Musashi\'s path from a wild youth to Japan\'s most famous swordsman.',
     price: 20,
     originalPrice: 25,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1421520544',
     publisher: 'VIZ Media',
     publishedYear: 2002,
@@ -241,7 +232,6 @@ const books = [
     description: 'Two teenagers who swap bodies in their sleep try to find each other across distance and time.',
     price: 14,
     originalPrice: 18,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-0316558556',
     publisher: 'Yen Press',
     publishedYear: 2017,
@@ -258,7 +248,6 @@ const books = [
     description: 'A Viking-age epic that follows Thorfinn\'s quest for revenge, and what he becomes after it.',
     price: 25,
     originalPrice: 30,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1612624204',
     publisher: 'Kodansha Comics',
     publishedYear: 2013,
@@ -275,7 +264,6 @@ const books = [
     description: 'After the hero party defeats the Demon King, the elf mage Frieren sets out to understand the humans she outlived.',
     price: 11,
     originalPrice: 14,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1974727231',
     publisher: 'VIZ Media',
     publishedYear: 2021,
@@ -292,7 +280,6 @@ const books = [
     description: 'Japan locks 300 strikers in a program built to create the world\'s most ruthless forward.',
     price: 11,
     originalPrice: 14,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1646511111',
     publisher: 'Kodansha Comics',
     publishedYear: 2021,
@@ -309,7 +296,6 @@ const books = [
     description: 'A girl who believes in ghosts and a boy who believes in aliens both turn out to be right.',
     price: 12,
     originalPrice: 15,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1974738381',
     publisher: 'VIZ Media',
     publishedYear: 2021,
@@ -326,7 +312,6 @@ const books = [
     description: 'Young Goku and Bulma hunt for the seven Dragon Balls in the story that shaped modern shonen.',
     price: 10,
     originalPrice: 13,
-    coverImage: 'https://m.media-amazon.com/images/I/81V5J5J5J5L._SY466_.jpg',
     isbn: '978-1569319207',
     publisher: 'VIZ Media',
     publishedYear: 2003,
@@ -382,16 +367,39 @@ const seedDatabase = async () => {
       'Dragon Ball, Vol. 1': 'Adventure',
     };
 
-    const booksWithCategories = books.map((book) => ({
+    // Covers, series and volume numbers come from the reviewed list in
+    // data/verifiedCovers.js so every book gets its own checked cover (or none).
+    const booksWithCategories = books.map((book) => {
+      const reviewed = verifiedCovers.find((entry) => entry.title === book.title);
+      return {
+        ...book,
+        series: reviewed?.series,
+        volumeNumber: reviewed?.volumeNumber,
+        coverImage: reviewed?.coverUrl ?? book.coverImage,
+        category: categoryMap[bookCategoryMap[book.title]],
+      };
+    });
+
+    const extraBooks = additionalBooks.map(({ category, ...book }) => ({
       ...book,
-      category: categoryMap[bookCategoryMap[book.title]],
+      category: categoryMap[category],
     }));
 
-    await Book.insertMany(booksWithCategories);
-    console.log(`Created ${books.length} books`);
+    await Book.insertMany([...booksWithCategories, ...extraBooks]);
+    console.log(`Created ${booksWithCategories.length + extraBooks.length} books`);
 
-    // Create admin user (password: Admin@123)
-    const adminPassword = 'Admin@123';
+    // Create admin/customer accounts. Passwords come from the environment;
+    // when unset, strong random passwords are generated and printed exactly
+    // once. Never seed known, guessable credentials.
+    const crypto = await import('node:crypto');
+    const adminPassword = process.env.SEED_ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url');
+    const customerPassword = process.env.SEED_CUSTOMER_PASSWORD || crypto.randomBytes(12).toString('base64url');
+    if (!process.env.SEED_ADMIN_PASSWORD) {
+      console.log(`SEED_ADMIN_PASSWORD not set – generated admin password: ${adminPassword}`);
+    }
+    if (!process.env.SEED_CUSTOMER_PASSWORD) {
+      console.log(`SEED_CUSTOMER_PASSWORD not set – generated customer password: ${customerPassword}`);
+    }
     await User.create({
       name: 'Admin User',
       email: 'admin@bookstore.com',
@@ -399,22 +407,19 @@ const seedDatabase = async () => {
       role: 'admin',
       isActive: true,
     });
-    console.log('Created admin user (email: admin@bookstore.com, password: Admin@123)');
 
-    // Create test customer (password: Customer@123)
     await User.create({
       name: 'Test Customer',
       email: 'customer@test.com',
-      password: 'Customer@123',
+      password: customerPassword,
       role: 'customer',
       isActive: true,
     });
-    console.log('Created test customer (email: customer@test.com, password: Customer@123)');
 
     console.log('\n✅ Database seeded successfully!');
-    console.log('\nAdmin login: admin@bookstore.com / Admin@123');
-    console.log('Customer login: customer@test.com / Customer@123');
-    console.log('\n⚠️  Change default passwords in production!');
+    console.log('\nAdmin login: admin@bookstore.com / see above (or SEED_ADMIN_PASSWORD)');
+    console.log('Customer login: customer@test.com / see above (or SEED_CUSTOMER_PASSWORD)');
+    console.log('\nStore these credentials somewhere safe and rotate them after first login.');
 
     process.exit(0);
   } catch (error) {

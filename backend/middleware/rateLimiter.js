@@ -39,4 +39,27 @@ export const adminLimiter = rateLimit({
   handler,
 });
 
+// Payment endpoints move real money and are worth extra protection against
+// abuse and scripted card testing. The Stripe webhook is machine-to-machine
+// and authenticated by signature, so it is skipped.
+export const paymentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: isDev ? 600 : 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => req.path === '/webhook' || req.originalUrl.endsWith('/webhook'),
+  handler,
+});
+
+// Public contact form: a human-only endpoint that would otherwise be a spam
+// relay. Limited per IP (the default key) so a single source cannot flood
+// the store inbox.
+export const contactLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: isDev ? 600 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler,
+});
+
 export default apiLimiter;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { param, body } from 'express-validator';
-import { getAllUsers, getUserById, updateUser, getUserOrders, deleteUser } from '../controllers/userController.js';
+import { getAllUsers, getUserById, updateUser, getUserOrders, deleteUser, getUserStats } from '../controllers/userController.js';
 import { authenticate, authorize } from '../middleware/authMiddleware.js';
 import { validate } from '../middleware/validateMiddleware.js';
 
@@ -8,6 +8,7 @@ const router = Router();
 
 router.use(authenticate, authorize('admin'));
 
+router.get('/stats', getUserStats);
 router.get('/', getAllUsers);
 router.get('/:id', [param('id').isMongoId().withMessage('Invalid user ID')], validate, getUserById);
 router.get('/:id/orders', [param('id').isMongoId().withMessage('Invalid user ID')], validate, getUserOrders);

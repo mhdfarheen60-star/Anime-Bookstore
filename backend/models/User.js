@@ -18,12 +18,41 @@ const userSchema = new mongoose.Schema(
       trim: true,
       match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please provide a valid email'],
     },
+    // Optional for accounts created through Google sign-in; those authenticate
+    // with googleId instead and have no local password until they set one.
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: [
+        function () {
+          return !this.googleId;
+        },
+        'Password is required',
+      ],
       minlength: [8, 'Password must be at least 8 characters'],
       select: false,
     },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      select: false,
+    },
+    username: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      unique: true,
+      sparse: true,
+      minlength: [3, 'Username must be at least 3 characters'],
+      maxlength: [30, 'Username cannot exceed 30 characters'],
+      match: [/^[a-z0-9_]+$/, 'Username can only contain lowercase letters, numbers, and underscores'],
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Bio cannot exceed 500 characters'],
+    },
+    avatar: String,
     role: {
       type: String,
       enum: ['customer', 'admin'],
@@ -41,6 +70,14 @@ const userSchema = new mongoose.Schema(
       country: String,
     },
     phone: String,
+    // Books the user has saved for later. Kept as a plain id list; updates use
+    // $addToSet / $pull so repeated clicks can never create duplicates.
+    wishlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Book',
+      },
+    ],
   },
   {
     timestamps: true,
@@ -49,19 +86,22 @@ const userSchema = new mongoose.Schema(
 
 userSchema.index({ role: 1 });
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+// Async hooks must not take `next` in Mongoose 9; returning the promise is enough.
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 12);
-  next();
 });
 
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  // Google-only accounts have no password to match against.
+  if (!this.password) return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
+  delete obj.googleId;
   return obj;
 };
 

@@ -3,6 +3,36 @@ import Order from '../models/Order.js';
 import { AppError } from '../middleware/errorMiddleware.js';
 import escapeRegex from '../utils/escapeRegex.js';
 
+const getUserStats = async (req, res, next) => {
+  try {
+    const [
+      totalUsers,
+      customerAccounts,
+      adminAccounts,
+      recentUsers,
+    ] = await Promise.all([
+      User.countDocuments({}),
+      User.countDocuments({ role: 'customer' }),
+      User.countDocuments({ role: 'admin' }),
+      User.countDocuments({
+        createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalUsers,
+        customerAccounts,
+        adminAccounts,
+        recentUsers,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAllUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search, role, isActive } = req.query;
@@ -190,4 +220,4 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
-export { getAllUsers, getUserById, updateUser, getUserOrders, deleteUser };
+export { getAllUsers, getUserById, updateUser, getUserOrders, deleteUser, getUserStats };

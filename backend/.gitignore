@@ -29,3 +29,8 @@ Thumbs.db
 
 # Testing
 coverage/
+# Admin-uploaded cover images (user content, not source)
+uploads/
+reports/
+
+!uploads/**/.gitkeep

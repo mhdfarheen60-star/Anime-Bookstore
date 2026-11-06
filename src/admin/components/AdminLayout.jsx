@@ -22,14 +22,14 @@ function AdminLayout() {
   }, [drawerOpen])
 
   return (
-    <div className="min-h-screen bg-[#f6f8fc] text-[#17213c]">
+    <div className="surface-light min-h-screen bg-[#f6f8fc] text-[#17213c]">
       <AdminHeader onMenu={() => setDrawerOpen(true)} />
 
       <div className="mx-auto flex max-w-[100rem] gap-6 px-4 py-7 sm:px-6 lg:px-10">
         {/* Desktop rail */}
         <aside className="hidden w-56 shrink-0 lg:block">
           <div className="sticky top-24">
-            <p className="mb-3 px-4 text-[11px] font-bold tracking-[1.3px] text-slate-400">MENU</p>
+            <p className="mb-3 px-4 text-[11px] font-bold tracking-[1.3px] text-slate-600">MENU</p>
             <Sidebar />
           </div>
         </aside>

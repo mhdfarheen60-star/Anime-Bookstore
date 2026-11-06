@@ -41,7 +41,7 @@ function Categories() {
   const all = data ?? []
   const needle = search.trim().toLowerCase()
   const categories = needle
-    ? all.filter((c) => c.name.toLowerCase().includes(needle) || c.slug.includes(needle))
+    ? all.filter((c) => c.name?.toLowerCase().includes(needle) || c.slug?.toLowerCase().includes(needle))
     : all
 
   const openCreate = () => {
@@ -122,7 +122,7 @@ function Categories() {
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-2xl font-bold">Categories</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-slate-500">
             {formatNumber(all.length)} categor{all.length === 1 ? 'y' : 'ies'}
           </p>
         </div>
@@ -166,7 +166,7 @@ function Categories() {
             <tr key={c._id} className="hover:bg-slate-50">
               <td className="px-4 py-3">
                 <p className="font-semibold text-slate-700">{c.name}</p>
-                {c.description && <p className="mt-0.5 max-w-md truncate text-xs text-slate-400">{c.description}</p>}
+                {c.description && <p className="mt-0.5 max-w-md truncate text-xs text-slate-500">{c.description}</p>}
               </td>
               <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.slug}</td>
               <td className="px-4 py-3 font-semibold text-slate-700">{formatNumber(c.bookCount ?? 0)}</td>
@@ -187,7 +187,7 @@ function Categories() {
                     type="button"
                     onClick={() => setPendingDelete(c)}
                     aria-label={`Delete ${c.name}`}
-                    className="rounded-lg border border-red-200 p-2 text-red-500 hover:bg-red-50"
+                    className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50"
                   >
                     <FontAwesomeIcon icon={faTrash} />
                   </button>
@@ -235,7 +235,7 @@ function Categories() {
                 type="checkbox"
                 checked={form.isActive}
                 onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-                className="h-4 w-4 accent-[#3157d5]"
+                className="h-4 w-4 accent-[#3B82F6]"
               />
               Visible in the storefront
             </label>

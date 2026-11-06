@@ -30,14 +30,38 @@ const bookSchema = new mongoose.Schema(
       min: [0, 'Original price cannot be negative'],
       validate: {
         validator: function (value) {
-          return !value || value >= this.price;
+          if (!value) return true;
+          // On findByIdAndUpdate `this` is the Query, not the document, so read the
+          // price from the update itself. If the update doesn't touch price we
+          // can't compare here, so let it through.
+          let price = this.price;
+          if (this instanceof mongoose.Query) {
+            const update = this.getUpdate() ?? {};
+            price = update.$set?.price ?? update.price;
+          }
+          return price === undefined || price === null || value >= price;
         },
         message: 'Original price must be greater than or equal to price',
       },
     },
+    // Absolute http(s) URL from a book catalogue, or a /uploads/covers/... path
+    // for an image an admin uploaded. Never a base64 data URL.
     coverImage: {
       type: String,
       trim: true,
+      validate: {
+        validator: (value) => !value || /^https?:\/\//i.test(value) || /^\/uploads\/covers\/[\w.-]+$/.test(value),
+        message: 'Cover image must be an http(s) URL or an uploaded cover',
+      },
+    },
+    series: {
+      type: String,
+      trim: true,
+      maxlength: [150, 'Series cannot exceed 150 characters'],
+    },
+    volumeNumber: {
+      type: Number,
+      min: [0, 'Volume number cannot be negative'],
     },
     category: {
       type: mongoose.Schema.Types.ObjectId,
@@ -55,6 +79,44 @@ const bookSchema = new mongoose.Schema(
       type: String,
       trim: true,
       maxlength: [100, 'Publisher name cannot exceed 100 characters'],
+    },
+    illustrator: {
+      type: String,
+      trim: true,
+      maxlength: [100, 'Illustrator name cannot exceed 100 characters'],
+    },
+    edition: {
+      type: String,
+      trim: true,
+      maxlength: [120, 'Edition cannot exceed 120 characters'],
+    },
+    pages: {
+      type: Number,
+      min: [1, 'Page count must be at least 1'],
+    },
+    format: {
+      type: String,
+      trim: true,
+      maxlength: [60, 'Format cannot exceed 60 characters'],
+    },
+    publicationDate: {
+      type: Date,
+    },
+    seriesStatus: {
+      type: String,
+      trim: true,
+      enum: {
+        values: ['Ongoing', 'Completed', 'Upcoming'],
+        message: 'Series status must be Ongoing, Completed or Upcoming',
+      },
+    },
+    // Merchandising shelves (Bestsellers, New Releases, Preorders, Box Sets,
+    // Omnibus Editions, ...). A book keeps one primary `category`, and tags let
+    // it appear on additional shelves without duplicating the product.
+    tags: {
+      type: [String],
+      default: [],
+      index: true,
     },
     publishedYear: {
       type: Number,
@@ -112,6 +174,7 @@ bookSchema.index({ price: 1 });
 bookSchema.index({ rating: -1 });
 bookSchema.index({ createdAt: -1 });
 bookSchema.index({ isActive: 1, stock: 1 });
+bookSchema.index({ series: 1, volumeNumber: 1 });
 
 bookSchema.virtual('discountPercent').get(function () {
   if (this.originalPrice && this.originalPrice > this.price) {

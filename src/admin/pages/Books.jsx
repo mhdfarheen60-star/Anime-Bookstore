@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faPlus, faPen, faTrash, faSearch } from '@fortawesome/free-solid-svg-icons'
@@ -22,19 +22,17 @@ import {
 } from '../components/Ui'
 import { formatMoney, formatNumber } from '../utils/format'
 import { transformBook } from '../../data/books'
+import { useUrlParams } from '../hooks/useUrlParams'
+import { useDebouncedSearch } from '../hooks/useDebouncedSearch'
 
-// "…?search=a&page=2" -> { search: 'a', category: '', page: 2 }
-const readParams = (search) => {
-  const p = new URLSearchParams(search)
-  return {
-    search: p.get('search') ?? '',
-    category: p.get('category') ?? '',
-    page: Number(p.get('page') ?? 1),
-  }
-}
+// Filter state lives in the URL so the view is shareable/bookmarkable.
+const PARAM_DEFAULTS = { search: '', category: '', page: 1 }
+const PARAM_RESET = ['search', 'category']
 
 function Books() {
-  const [params, setParams] = useState(() => readParams(window.location.search))
+  const [params, update] = useUrlParams(PARAM_DEFAULTS, PARAM_RESET)
+  const [searchInput, debouncedSearch, onSearchChange] = useDebouncedSearch(350, params.search)
+  const lastPushed = useRef(params.search)
   const [editing, setEditing] = useState(null) // book being edited, or null
   const [formOpen, setFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -43,28 +41,14 @@ function Books() {
   const [pendingDelete, setPendingDelete] = useState(null)
   const [deleting, setDeleting] = useState(false)
 
-  // Reflect filter state in the URL so the module is shareable/bookmarkable.
+  // Reflect the debounced search box into the URL-backed params.
   useEffect(() => {
-    const onPop = () => setParams(readParams(window.location.search))
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
-
-  const update = (patch) => {
-    const next = { ...params, ...patch }
-    // Any filter change should send you back to page 1.
-    if ((patch.search !== undefined || patch.category !== undefined) && patch.page === undefined) {
-      next.page = 1
+    if (debouncedSearch !== lastPushed.current) {
+      lastPushed.current = debouncedSearch
+      update({ search: debouncedSearch })
     }
-    const p = new URLSearchParams()
-    if (next.search) p.set('search', next.search)
-    if (next.category) p.set('category', next.category)
-    if (next.page > 1) p.set('page', String(next.page))
-
-    const qs = p.toString()
-    window.history.replaceState(null, '', qs ? `${window.location.pathname}?${qs}` : window.location.pathname)
-    setParams(next)
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- push-only on debounce change
+  }, [debouncedSearch])
 
   const { data, loading, error, reload } = useAsync(
     async () => {
@@ -96,6 +80,8 @@ function Books() {
   const openEdit = (book) => {
     setEditing({
       ...emptyBookForm,
+      // Without the id, "Save changes" used to create a new book instead of updating.
+      id: book.id,
       title: book.title ?? '',
       author: book.author ?? '',
       description: book.description ?? '',
@@ -104,6 +90,8 @@ function Books() {
       coverImage: book.image ?? '',
       category: book.category?._id ?? book.category ?? '',
       isbn: book.isbn ?? '',
+      series: book.series ?? '',
+      volumeNumber: book.volumeNumber ?? '',
       publisher: book.publisher ?? '',
       publishedYear: book.publishedYear ?? '',
       stock: book.stock ?? 0,
@@ -177,7 +165,7 @@ function Books() {
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <h1 className="text-2xl font-bold">Books</h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-slate-500">
             {pagination ? `${formatNumber(pagination.totalBooks)} book(s) in the catalogue` : 'Manage your catalogue'}
           </p>
         </div>
@@ -191,11 +179,11 @@ function Books() {
 
       <Toolbar>
         <div className="relative flex-1 sm:max-w-sm">
-          <FontAwesomeIcon icon={faSearch} className="absolute top-1/2 left-3 -translate-y-1/2 text-xs text-slate-400" />
+          <FontAwesomeIcon icon={faSearch} className="absolute top-1/2 left-3 -translate-y-1/2 text-xs text-slate-500" />
           <input
             type="search"
-            value={params.search}
-            onChange={(e) => update({ search: e.target.value })}
+            value={searchInput}
+            onChange={(e) => onSearchChange(e.target.value)}
             aria-label="Search books"
             placeholder="Search title, author or description"
             className={`${inputClass} pl-9`}
@@ -241,7 +229,7 @@ function Books() {
                     </div>
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-slate-700">{b.title}</p>
-                      <p className="truncate text-xs text-slate-400">{b.author}</p>
+                      <p className="truncate text-xs text-slate-500">{b.author}</p>
                     </div>
                   </div>
                 </td>
@@ -249,11 +237,11 @@ function Books() {
                 <td className="px-4 py-3 font-semibold text-slate-700">
                   {formatMoney(b.price)}
                   {b.discountPercent > 0 && (
-                    <span className="ml-1.5 text-xs font-medium text-emerald-600">-{b.discountPercent}%</span>
+                    <span className="ml-1.5 text-xs font-medium text-emerald-700">-{b.discountPercent}%</span>
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`font-semibold ${b.stock === 0 ? 'text-red-600' : b.stock <= 10 ? 'text-amber-600' : 'text-slate-700'}`}>
+                  <span className={`font-semibold ${b.stock === 0 ? 'text-red-600' : b.stock <= 10 ? 'text-amber-700' : 'text-slate-700'}`}>
                     {formatNumber(b.stock)}
                   </span>
                 </td>
@@ -290,7 +278,7 @@ function Books() {
                       type="button"
                       onClick={() => setPendingDelete(b)}
                       aria-label={`Delete ${b.title}`}
-                      className="rounded-lg border border-red-200 p-2 text-red-500 hover:bg-red-50"
+                      className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50"
                     >
                       <FontAwesomeIcon icon={faTrash} />
                     </button>

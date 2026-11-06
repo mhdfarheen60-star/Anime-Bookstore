@@ -34,6 +34,14 @@ export const handleValidationErrorDB = (err) => {
   return new AppError(message, 400);
 };
 
+// Connectivity failures (e.g. Atlas rejecting the TLS handshake) are an outage,
+// not a bug in the request; keep the raw OpenSSL text out of the UI.
+const DB_UNAVAILABLE = /^Mongo(ose)?(Network|NetworkTimeout|ServerSelection|PoolCleared)Error$/;
+export const handleDBUnavailable = (err) => {
+  console.error('Database unavailable:', err.name, err.message);
+  return new AppError('Database is temporarily unavailable. Please try again shortly.', 503);
+};
+
 export const handleJWTError = () =>
   new AppError('Invalid token. Please log in again.', 401);
 
@@ -68,17 +76,20 @@ export const globalErrorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 
+  // Translate known database/JWT errors in every environment, so development
+  // shows the same status codes and readable messages as production.
+  let error = err;
+  if (err.name === 'CastError') error = handleCastErrorDB(err);
+  if (err.code === 11000) error = handleDuplicateFieldsDB(err);
+  if (err.name === 'ValidationError') error = handleValidationErrorDB(err);
+  if (err.name === 'JsonWebTokenError') error = handleJWTError();
+  if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
+  if (DB_UNAVAILABLE.test(err.name)) error = handleDBUnavailable(err);
+
   if (process.env.NODE_ENV === 'development') {
-    sendErrorDev(err, res);
+    if (error !== err) error.stack = err.stack;
+    sendErrorDev(error, res);
   } else {
-    let error = { ...err, message: err.message, name: err.name };
-
-    if (error.name === 'CastError') error = handleCastErrorDB(error);
-    if (error.code === 11000) error = handleDuplicateFieldsDB(error);
-    if (error.name === 'ValidationError') error = handleValidationErrorDB(error);
-    if (error.name === 'JsonWebTokenError') error = handleJWTError();
-    if (error.name === 'TokenExpiredError') error = handleJWTExpiredError();
-
     sendErrorProd(error, res);
   }
 };

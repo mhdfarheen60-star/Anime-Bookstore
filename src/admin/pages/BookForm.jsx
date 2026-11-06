@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button, Field, Modal, inputClass } from '../components/Ui'
 import { emptyBookForm } from './bookFormDefaults'
+import CoverPicker from '../components/CoverPicker'
 
 /** Create/edit form for a book. Owns no fetching – the page does that. */
 function BookForm({ initial, categories, saving = false, error = '', onSubmit, onCancel }) {
@@ -34,18 +35,46 @@ function BookForm({ initial, categories, saving = false, error = '', onSubmit, o
       return
     }
 
-    const colors = form.colors.split(',').map((c) => c.trim()).filter(Boolean)
+    const volumeText = String(form.volumeNumber ?? '').trim()
+    const volumeNumber = volumeText === '' ? null : Number(volumeText)
+    if (volumeNumber !== null && (!Number.isInteger(volumeNumber) || volumeNumber < 0)) {
+      setLocalError('Volume must be a whole number.')
+      return
+    }
 
+    const colors = form.colors.split(',').map((c) => c.trim()).filter(Boolean)
+    const isbn = form.isbn.trim()
+    const tags = (Array.isArray(form.tags) ? form.tags : String(form.tags ?? '').split(','))
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+    const publicationDate = String(form.publicationDate ?? '').slice(0, 10)
+
+    // When editing, an emptied field is sent as '' so the server clears it.
+    // When creating, empty fields are simply left out.
+    const cleared = initial ? '' : undefined
+
+    // eslint-disable-next-line no-unused-vars -- id is the route param, not a field
+    const { id, ...fields } = form
     onSubmit({
-      ...form,
+      ...fields,
       price,
       stock,
-      // Empty strings would fail server validation, so send them as undefined.
-      originalPrice: form.originalPrice === '' ? undefined : Number(form.originalPrice),
+      originalPrice: form.originalPrice === '' ? cleared : Number(form.originalPrice),
       publishedYear: form.publishedYear === '' ? undefined : Number(form.publishedYear),
-      isbn: form.isbn.trim() || undefined,
-      coverImage: form.coverImage.trim() || undefined,
+      // Only send the ISBN when it changed, so editing other fields of a book whose
+      // stored ISBN is malformed doesn't get blocked by ISBN validation.
+      isbn: initial && isbn === (initial.isbn ?? '') ? undefined : isbn || cleared,
+      coverImage: form.coverImage.trim() || cleared,
+      series: form.series.trim() || cleared,
+      volumeNumber: volumeNumber ?? cleared,
       publisher: form.publisher.trim() || undefined,
+      illustrator: form.illustrator.trim() || cleared,
+      edition: form.edition.trim() || cleared,
+      pages: form.pages === '' ? cleared : Number(form.pages),
+      format: form.format.trim() || cleared,
+      publicationDate: publicationDate || cleared,
+      seriesStatus: form.seriesStatus || cleared,
+      tags,
       colors: colors.length ? colors : undefined,
     })
   }
@@ -76,8 +105,28 @@ function BookForm({ initial, categories, saving = false, error = '', onSubmit, o
               ))}
             </select>
           </Field>
-          <Field label="ISBN" hint="Optional, must be unique">
+          <Field label="ISBN" hint="ISBN-13 or ISBN-10, must be unique. Used first when searching for the cover.">
             <input className={inputClass} value={form.isbn} onChange={(e) => set({ isbn: e.target.value })} />
+          </Field>
+          <Field label="Series" hint="e.g. Jujutsu Kaisen">
+            <input className={inputClass} value={form.series} onChange={(e) => set({ series: e.target.value })} />
+          </Field>
+          <Field label="Volume number">
+            <input type="number" min="0" step="1" className={inputClass} value={form.volumeNumber}
+              onChange={(e) => set({ volumeNumber: e.target.value })} />
+          </Field>
+          <Field label="Illustrator" hint="Artist credited for the interior art">
+            <input className={inputClass} value={form.illustrator} onChange={(e) => set({ illustrator: e.target.value })} />
+          </Field>
+          <Field label="Edition" hint="e.g. Standard Edition, Deluxe Edition, Omnibus">
+            <input className={inputClass} value={form.edition} onChange={(e) => set({ edition: e.target.value })} />
+          </Field>
+          <Field label="Format" hint="e.g. Paperback, Hardcover, Box Set">
+            <input className={inputClass} value={form.format} onChange={(e) => set({ format: e.target.value })} />
+          </Field>
+          <Field label="Pages">
+            <input type="number" min="1" step="1" className={inputClass} value={form.pages}
+              onChange={(e) => set({ pages: e.target.value })} />
           </Field>
           <Field label="Price (USD) *">
             <input type="number" min="0" step="0.01" className={inputClass} value={form.price}
@@ -101,6 +150,22 @@ function BookForm({ initial, categories, saving = false, error = '', onSubmit, o
           <Field label="Language">
             <input className={inputClass} value={form.language} onChange={(e) => set({ language: e.target.value })} />
           </Field>
+          <Field label="Publication date">
+            <input type="date" className={inputClass} value={String(form.publicationDate ?? '').slice(0, 10)}
+              onChange={(e) => set({ publicationDate: e.target.value })} />
+          </Field>
+          <Field label="Series status">
+            <select className={inputClass} value={form.seriesStatus} onChange={(e) => set({ seriesStatus: e.target.value })}>
+              <option value="">Not set</option>
+              <option value="Ongoing">Ongoing</option>
+              <option value="Completed">Completed</option>
+              <option value="Upcoming">Upcoming</option>
+            </select>
+          </Field>
+          <Field label="Shelf tags" hint="Comma-separated, e.g. Bestsellers, New Releases, Box Sets">
+            <input className={inputClass} value={Array.isArray(form.tags) ? form.tags.join(', ') : (form.tags ?? '')}
+              onChange={(e) => set({ tags: e.target.value })} />
+          </Field>
         </div>
 
         <Field label="Description *">
@@ -108,23 +173,31 @@ function BookForm({ initial, categories, saving = false, error = '', onSubmit, o
             onChange={(e) => set({ description: e.target.value })} required />
         </Field>
 
-        <Field label="Cover image URL" hint="Leave empty to fall back to the generated cover">
-          <input className={inputClass} value={form.coverImage}
-            onChange={(e) => set({ coverImage: e.target.value })} placeholder="https://..." />
-        </Field>
+        <CoverPicker
+          value={form.coverImage}
+          onChange={(coverImage) => set({ coverImage })}
+          book={{
+            title: form.title,
+            author: form.author,
+            isbn: form.isbn,
+            series: form.series,
+            volumeNumber: form.volumeNumber,
+            colors: form.colors.split(',').map((c) => c.trim()).filter(Boolean),
+          }}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Cover colours" hint="Two comma-separated hex values">
+          <Field label="Placeholder colours" hint="Two comma-separated hex values, used when there is no cover image">
             <input className={inputClass} value={form.colors} onChange={(e) => set({ colors: e.target.value })} />
           </Field>
-          <Field label="Cover glyph" hint="Single character used on generated covers">
+          <Field label="Placeholder glyph" hint="Single character shown when there is no cover image">
             <input className={inputClass} maxLength="2" value={form.glyph} onChange={(e) => set({ glyph: e.target.value })} />
           </Field>
         </div>
 
         <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
           <input type="checkbox" checked={form.featured} onChange={(e) => set({ featured: e.target.checked })}
-            className="h-4 w-4 accent-[#3157d5]" />
+            className="h-4 w-4 accent-[#3B82F6]" />
           Feature on the home page
         </label>
 

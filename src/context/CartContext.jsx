@@ -11,20 +11,30 @@ export default CartContext;
 export function CartProvider({ children }) {
   const [cart, setCart] = useState({ items: [], subtotal: 0, itemCount: 0 });
   const [loading, setLoading] = useState(false);
+  // False until the first cart fetch has finished, so pages can show a skeleton.
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState('');
   const { isAuthenticated, loading: authLoading } = useAuth();
 
   const fetchCart = useCallback(async () => {
     if (!isAuthenticated) {
       setCart({ items: [], subtotal: 0, itemCount: 0 });
+      setReady(true);
+      setError('');
       return;
     }
+    setError('');
     try {
       const response = await api.getCart();
       if (response.success) {
         setCart(response.data.cart);
+      } else {
+        setError(response.message || 'Could not load your cart');
       }
-    } catch (error) {
-      console.error('Failed to fetch cart:', error);
+    } catch (err) {
+      setError(err?.message || 'Could not load your cart');
+    } finally {
+      setReady(true);
     }
   }, [isAuthenticated]);
 
@@ -104,6 +114,8 @@ export function CartProvider({ children }) {
   const value = {
     cart,
     loading,
+    ready,
+    error,
     addToCart,
     updateCartItem,
     removeFromCart,

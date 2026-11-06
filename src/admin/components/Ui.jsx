@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faSpinner,
@@ -10,7 +11,7 @@ import {
 
 export function Spinner({ label = 'Loading...' }) {
   return (
-    <div className="flex items-center justify-center gap-3 py-16 text-slate-400" role="status">
+    <div className="flex items-center justify-center gap-3 py-16 text-slate-500" role="status">
       <FontAwesomeIcon icon={faSpinner} spinPulse className="text-lg" />
       <span className="text-sm">{label}</span>
     </div>
@@ -20,9 +21,9 @@ export function Spinner({ label = 'Loading...' }) {
 export function EmptyState({ title = 'Nothing here yet', hint = '', action = null }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-      <FontAwesomeIcon icon={faInbox} className="text-3xl text-slate-300" />
-      <p className="font-semibold text-slate-600">{title}</p>
-      {hint && <p className="max-w-sm text-sm text-slate-400">{hint}</p>}
+      <FontAwesomeIcon icon={faInbox} className="text-3xl text-slate-500" />
+      <p className="font-semibold text-slate-700">{title}</p>
+      {hint && <p className="max-w-sm text-sm text-slate-500">{hint}</p>}
       {action}
     </div>
   )
@@ -31,13 +32,13 @@ export function EmptyState({ title = 'Nothing here yet', hint = '', action = nul
 export function ErrorState({ message, onRetry }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-16 text-center" role="alert">
-      <FontAwesomeIcon icon={faTriangleExclamation} className="text-3xl text-red-400" />
+      <FontAwesomeIcon icon={faTriangleExclamation} className="text-3xl text-red-600" />
       <p className="font-semibold text-slate-700">{message || 'Could not load this data'}</p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+          className="mt-1 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
         >
           Try again
         </button>
@@ -123,7 +124,7 @@ export function Pagination({ page, totalPages, onChange }) {
 }
 
 const BTN = {
-  primary: 'bg-[#3157d5] text-white hover:bg-[#2749b8]',
+  primary: 'bg-[#3B82F6] text-white hover:bg-[#2563EB]',
   ghost: 'border border-slate-200 text-slate-600 hover:bg-slate-50',
   danger: 'bg-red-600 text-white hover:bg-red-700',
 }
@@ -144,17 +145,35 @@ export function Button({ variant = 'primary', busy = false, className = '', chil
 
 /** Centered modal used for every create/edit form and delete confirmation. */
 export function Modal({ title, onClose, children, wide = false }) {
+  // Close on Escape and lock body scroll while the modal is open.
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key === 'Escape') onClose?.()
+    }
+    document.addEventListener('keydown', onKey)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-100 flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-10">
+    <div
+      className="fixed inset-0 z-100 flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-10"
+      onClick={onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`w-full rounded-2xl bg-white shadow-xl ${wide ? 'max-w-3xl' : 'max-w-lg'}`}
+        className={`surface-light w-full rounded-2xl bg-white text-slate-900 shadow-xl ${wide ? 'max-w-3xl' : 'max-w-lg'}`}
+        onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <h3 className="text-lg font-bold text-slate-800">{title}</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600">
+          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-500 hover:text-slate-700">
             <FontAwesomeIcon icon={faXmark} />
           </button>
         </div>
@@ -183,26 +202,26 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Delete', busy = 
 
 
 export const inputClass =
-  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-[#3157d5] focus:ring-4 focus:ring-[#3157d5]/10'
+  'w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-[#3B82F6] focus:ring-4 focus:ring-[#3B82F6]/15 disabled:bg-slate-50 disabled:text-slate-500'
 
 export function Field({ label, hint, children }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold text-slate-500">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold text-slate-600">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] text-slate-400">{hint}</span>}
+      {hint && <span className="mt-1 block text-[11px] text-slate-500">{hint}</span>}
     </label>
   )
 }
 
 export function Table({ head, children }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+    <div className="surface-light overflow-x-auto rounded-2xl border border-slate-200 bg-white text-slate-900">
       <table className="w-full min-w-[46rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50 text-left">
             {head.map((h) => (
-              <th key={h} className="px-4 py-3 text-[11px] font-bold tracking-wide text-slate-400 uppercase">
+              <th key={h} className="px-4 py-3 text-[11px] font-bold tracking-wide text-slate-600 uppercase">
                 {h}
               </th>
             ))}

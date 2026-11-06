@@ -19,7 +19,7 @@ router.post(
     body('shippingAddress.state').trim().notEmpty().withMessage('State is required'),
     body('shippingAddress.zipCode').trim().notEmpty().withMessage('ZIP code is required'),
     body('shippingAddress.country').trim().notEmpty().withMessage('Country is required'),
-    body('paymentMethod').optional().isIn(['cod', 'card', 'bank_transfer', 'wallet']).withMessage('Invalid payment method'),
+    body('paymentMethod').optional().isIn(['cod', 'card', 'bank_transfer', 'wallet', 'razorpay', 'stripe']).withMessage('Invalid payment method'),
     body('notes').optional().trim().isLength({ max: 1000 }).withMessage('Notes max 1000 chars'),
   ],
   validate,

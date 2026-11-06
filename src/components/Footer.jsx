@@ -1,135 +1,186 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faFacebook, faInstagram, faXTwitter, faLinkedinIn } from '@fortawesome/free-brands-svg-icons'
-import { faArrowRightLong, faBook, faEnvelope, faLocationDot, faPhone } from '@fortawesome/free-solid-svg-icons'
+import Wordmark from './Wordmark'
+import { api } from '../api/client'
 
-// Only pages that exist in App.jsx – add more here when you build them.
-const quickLinks = [
-  { name: 'Home', path: '/' },
-  { name: 'Books', path: '/all-books' },
-  { name: 'Contact Us', path: '/contact' },
-  { name: 'Login', path: '/login' },
+// Genres are read from the live catalogue so every link points at a shelf that
+// actually exists. The request is cached for the session.
+let genreRequest = null
+const loadGenres = () => {
+  if (!genreRequest) {
+    genreRequest = api
+      .getCategories()
+      .then((res) => (res.data?.categories ?? []).filter((c) => c.bookCount > 0).slice(0, 5))
+      .catch(() => [])
+  }
+  return genreRequest
+}
+
+const EXPLORE = [
+  { name: 'All Books', to: '/all-books' },
+  { name: 'Series', to: '/series' },
+  { name: 'New Arrivals', to: '/all-books?sort=newest' },
+  { name: 'Featured Titles', to: '/all-books?featured=1' },
 ]
 
-// TODO: replace with your real social profiles.
-const socials = [
-  { icon: faFacebook, label: 'Facebook', href: 'https://facebook.com/yourpage' },
-  { icon: faInstagram, label: 'Instagram', href: 'https://instagram.com/yourpage' },
-  { icon: faXTwitter, label: 'X', href: 'https://x.com/yourpage' },
-  { icon: faLinkedinIn, label: 'LinkedIn', href: 'https://linkedin.com/company/yourpage' },
+const DISCOVER = [
+  { name: 'Blog', to: '/blog' },
+  { name: 'Reading Guides', to: '/guides' },
+  { name: 'Author Spotlights', to: '/authors' },
+  { name: 'Latest Releases', to: '/all-books?sort=newest' },
+  { name: 'Featured Collections', to: '/all-books?featured=1' },
 ]
+
+const CARE = [
+  { name: 'Contact Us', to: '/contact' },
+  { name: 'Frequently Asked Questions', to: '/faq' },
+  { name: 'Shipping & Returns', to: '/shipping-returns' },
+  { name: 'Track My Order', to: '/profile?tab=history' },
+  { name: 'My Account', to: '/profile' },
+  { name: 'Wishlist', to: '/wishlist' },
+]
+
+const COMPANY = [
+  { name: 'About Us', to: '/about' },
+  { name: 'Privacy Policy', to: '/privacy' },
+  { name: 'Terms & Conditions', to: '/terms' },
+  { name: 'Refund Policy', to: '/refund-policy' },
+  { name: 'Sitemap', to: '/sitemap' },
+]
+
+// The store's real profiles are not set up yet, so these are shown as
+// unavailable rather than linking to a page that does not exist.
+const SOCIALS = [
+  { icon: faInstagram, label: 'Instagram' },
+  { icon: faXTwitter, label: 'X' },
+  { icon: faFacebook, label: 'Facebook' },
+  { icon: faLinkedinIn, label: 'LinkedIn' },
+]
+
+const linkClass = 'inline-flex min-h-10 items-center text-sm text-moon/80 transition-colors duration-300 hover:text-moon'
+
+function FooterColumn({ title, children, className = '' }) {
+  return (
+    <nav aria-label={title} className={className}>
+      <h2 className="eyebrow text-mist">{title}</h2>
+      <ul className="mt-5 space-y-1">{children}</ul>
+    </nav>
+  )
+}
 
 function Footer() {
-  const [email, setEmail] = useState('')
-  const [subscribed, setSubscribed] = useState(false)
+  const [genres, setGenres] = useState([])
 
-  const handleSubscribe = (e) => {
-    e.preventDefault()
-    if (!email.trim()) return
-    // TODO: call your newsletter API here
-    setSubscribed(true)
-    setEmail('')
-  }
+  useEffect(() => {
+    let cancelled = false
+    loadGenres().then((list) => {
+      if (!cancelled) setGenres(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
-    <footer className="bg-panel text-white">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3 lg:gap-16">
-          {/* About */}
-          <div>
-            <Link to="/" className="mb-6 flex items-center gap-3" aria-label="Book Store Home">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
-                <FontAwesomeIcon icon={faBook} />
-              </span>
-              <span className="text-xl font-bold tracking-tight lg:text-2xl">BOOK STORE</span>
-            </Link>
-            <p className="mb-6 text-sm font-light leading-relaxed text-gray-400 lg:text-base">
-              Your trusted destination for discovering amazing books across every genre.
+    <footer className="border-t border-line bg-ink text-moon">
+      {/* Newsletter band. There is no mailing-list service behind the store
+          yet, so no email field is shown: a form that silently discards an
+          address would be worse than none. */}
+      <section aria-labelledby="newsletter-heading" className="border-b border-line">
+        <div className="shell grid gap-8 py-12 lg:grid-cols-12 lg:items-center lg:gap-10 lg:py-14">
+          <div className="lg:col-span-6">
+            <h2 id="newsletter-heading" className="font-display text-xl font-bold tracking-tight sm:text-2xl">
+              Stay in the loop
+            </h2>
+            <p className="mt-4 max-w-xl leading-relaxed text-mist">
+              The next chapter starts here. Discover new volumes, upcoming releases, and collector editions worth keeping.
             </p>
-            <div className="flex gap-3">
-              {socials.map(({ icon, label, href }) => (
-                <a
-                  key={label}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-gray-400 transition-colors hover:bg-white/20 hover:text-white"
-                >
-                  <FontAwesomeIcon icon={icon} />
-                </a>
-              ))}
-            </div>
           </div>
-
-          {/* Quick links + contact */}
-          <div>
-            <h4 className="mb-5 text-base font-semibold lg:text-lg">Quick Links</h4>
-            <nav className="space-y-2 lg:space-y-3">
-              {quickLinks.map((l) => (
-                <Link
-                  key={l.name}
-                  to={l.path}
-                  className="block text-sm font-light text-gray-400 transition-colors hover:text-white lg:text-base"
-                >
-                  {l.name}
-                </Link>
-              ))}
-            </nav>
-            <div className="mt-8 space-y-3 text-sm font-light text-gray-400">
-              <p className="flex items-start gap-3">
-                <FontAwesomeIcon icon={faLocationDot} className="mt-1 text-sakura" />
-                123 Library Street, Your City
-              </p>
-              <p className="flex items-center gap-3">
-                <FontAwesomeIcon icon={faPhone} className="text-sakura" />
-                +91 00000 00000
-              </p>
+          <div className="flex flex-col gap-4 lg:col-span-6 lg:items-end">
+            <div className="flex flex-wrap gap-3">
+              <Link to="/blog" className="inline-flex min-h-12 items-center bg-sakura px-6 font-semibold text-white transition-colors hover:bg-[#2563EB]">
+                Join the reading list →
+              </Link>
+              <Link to="/contact" className="inline-flex min-h-12 items-center border border-line px-6 font-semibold transition-colors hover:border-electric hover:text-electric">
+                Get in touch
+              </Link>
             </div>
-          </div>
-
-          {/* Newsletter */}
-          <div>
-            <h4 className="mb-3 text-base font-semibold lg:text-lg">Newsletter</h4>
-            <p className="mb-5 text-sm font-light text-gray-400 lg:text-base">
-              Get special offers, giveaways and new-arrival alerts.
+            <p className="text-xs leading-relaxed text-mist lg:text-right">
+              Email subscriptions are not switched on yet — the journal and the contact form are the live channels today.
             </p>
-
-            {subscribed ? (
-              <p role="status" className="text-sm text-sakura">Thanks for subscribing!</p>
-            ) : (
-              <form onSubmit={handleSubscribe} className="space-y-3">
-                <div className="relative">
-                  <FontAwesomeIcon
-                    icon={faEnvelope}
-                    className="absolute top-1/2 left-3 -translate-y-1/2 text-sm text-gray-400"
-                  />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    aria-label="Email address"
-                    placeholder="your@email.com"
-                    className="w-full rounded-full border border-white/20 bg-white/10 py-3 pr-4 pl-9 text-white outline-none placeholder:text-gray-400 focus:border-sakura focus:ring-2 focus:ring-sakura/20"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-sakura px-4 py-3 font-semibold text-white transition-colors hover:bg-sakura/80"
-                >
-                  Subscribe
-                  <FontAwesomeIcon icon={faArrowRightLong} className="text-sm" />
-                </button>
-              </form>
-            )}
           </div>
         </div>
+      </section>
+
+      <div className="shell grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-12 lg:gap-8 lg:py-14">
+        {/* Column 1 — the brand */}
+        <div className="lg:col-span-4">
+          <Link to="/" aria-label="Book Store home"><Wordmark /></Link>
+          <p className="mt-6 max-w-xs text-sm leading-relaxed text-mist">
+            Manga, light novels and collector editions, each shown with the cover of the exact volume you receive.
+          </p>
+          <ul className="mt-6 flex flex-wrap gap-2">
+            {SOCIALS.map(({ icon, label }) => (
+              <li key={label}>
+                <span
+                  aria-disabled="true"
+                  title={`${label} profile not set up yet`}
+                  className="grid h-11 w-11 cursor-not-allowed place-items-center text-mist/50"
+                >
+                  <FontAwesomeIcon icon={icon} />
+                  <span className="sr-only">{label} (not available yet)</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Column 2 — explore */}
+        <FooterColumn title="Explore" className="lg:col-span-2">
+          {EXPLORE.map((l) => (
+            <li key={l.to}><Link to={l.to} className={linkClass}>{l.name}</Link></li>
+          ))}
+          {genres.length > 0 && (
+            <>
+              <li className="pt-4">
+                <span className="eyebrow text-mist/70">By genre</span>
+              </li>
+              {genres.map((g) => (
+                <li key={g.slug}>
+                  <Link to={`/all-books?genre=${encodeURIComponent(g.name)}`} className={linkClass}>{g.name}</Link>
+                </li>
+              ))}
+            </>
+          )}
+        </FooterColumn>
+
+        {/* Column 3 — discover */}
+        <FooterColumn title="Discover" className="lg:col-span-2">
+          {DISCOVER.map((l) => (
+            <li key={l.to}><Link to={l.to} className={linkClass}>{l.name}</Link></li>
+          ))}
+        </FooterColumn>
+
+        {/* Column 4 — customer care */}
+        <FooterColumn title="Customer Care" className="lg:col-span-2">
+          {CARE.map((l) => (
+            <li key={l.to}><Link to={l.to} className={linkClass}>{l.name}</Link></li>
+          ))}
+        </FooterColumn>
+
+        {/* Column 5 — company & policies */}
+        <FooterColumn title="Company & Policies" className="lg:col-span-2">
+          {COMPANY.map((l) => (
+            <li key={l.to}><Link to={l.to} className={linkClass}>{l.name}</Link></li>
+          ))}
+        </FooterColumn>
       </div>
 
-      <div className="bg-black/40 py-4 text-center text-sm font-light text-gray-400">
-        © {new Date().getFullYear()} BOOK STORE. All rights reserved.
+      <div className="shell flex flex-col gap-2 border-t border-line py-5 text-xs text-mist sm:flex-row sm:items-center sm:justify-between">
+        <p>© {new Date().getFullYear()} Book Store. All rights reserved.</p>
+        <p>Cover images: publisher artwork via Open Library, or supplied by the store.</p>
       </div>
     </footer>
   )

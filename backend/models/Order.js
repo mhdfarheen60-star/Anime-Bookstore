@@ -89,9 +89,15 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'paid', 'failed', 'refunded'],
       default: 'pending',
     },
+    // Unique so two concurrent verify requests cannot both create an order.
+    razorpayOrderId: { type: String, unique: true, sparse: true },
+    razorpayPaymentId: { type: String },
+    razorpaySignature: { type: String },
+    // Stripe payment intent/session details for online payments.
+    stripePaymentId: { type: String, unique: true, sparse: true },
     paymentMethod: {
       type: String,
-      enum: ['cod', 'card', 'bank_transfer', 'wallet'],
+      enum: ['cod', 'card', 'bank_transfer', 'wallet', 'razorpay', 'stripe'],
       default: 'cod',
     },
     notes: {
@@ -115,14 +121,13 @@ orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
 orderSchema.index({ createdAt: -1 });
 
-orderSchema.pre('validate', async function (next) {
+orderSchema.pre('validate', async function () {
   if (!this.orderNumber) {
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
     this.orderNumber = `ORD-${dateStr}-${random}`;
   }
-  next();
 });
 
 orderSchema.virtual('itemCount').get(function () {

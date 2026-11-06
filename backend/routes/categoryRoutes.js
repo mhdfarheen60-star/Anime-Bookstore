@@ -7,12 +7,12 @@ import {
   updateCategory,
   deleteCategory,
 } from '../controllers/categoryController.js';
-import { authenticate, authorize } from '../middleware/authMiddleware.js';
+import { authenticate, authorize, optionalAuth } from '../middleware/authMiddleware.js';
 import { validate } from '../middleware/validateMiddleware.js';
 
 const router = Router();
 
-router.get('/', getAllCategories);
+router.get('/', optionalAuth, getAllCategories);
 router.get('/:id', getCategoryById);
 
 router.post(

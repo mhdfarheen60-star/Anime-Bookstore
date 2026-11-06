@@ -39,7 +39,7 @@ const categorySchema = new mongoose.Schema(
 
 categorySchema.index({ isActive: 1 });
 
-categorySchema.pre('validate', function (next) {
+categorySchema.pre('validate', function () {
   if (this.isModified('name') && !this.isModified('slug')) {
     this.slug = this.name
       .toLowerCase()
@@ -47,7 +47,6 @@ categorySchema.pre('validate', function (next) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
   }
-  next();
 });
 
 categorySchema.virtual('books', {

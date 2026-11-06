@@ -57,6 +57,9 @@ const sanitize = (obj) => {
 
 export const sanitizeInput = (req, res, next) => {
   try {
+    // Raw byte payloads (Stripe webhook, image uploads) must not be treated
+    // as JSON objects – iterating them byte by byte destroys the payload.
+    if (Buffer.isBuffer(req.body)) return next();
     // NOTE: express populates req.query/req.params as own, writable properties,
     // so reassigning them is safe on Express 4 (Express 5 makes req.query a
     // getter, which would throw here).

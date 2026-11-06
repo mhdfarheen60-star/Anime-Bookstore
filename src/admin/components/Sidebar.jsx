@@ -4,8 +4,8 @@ import { NAV_ITEMS } from './navItems'
 const linkClass = ({ isActive }) =>
   `flex items-center gap-2.5 rounded-lg px-4 py-2.5 text-sm transition ${
     isActive
-      ? 'bg-[#eef2ff] font-semibold text-[#3157d5]'
-      : 'font-medium text-slate-500 hover:bg-slate-50 hover:text-[#3157d5]'
+      ? 'bg-[#eff6ff] font-semibold text-[#2563EB]'
+      : 'font-medium text-slate-500 hover:bg-slate-50 hover:text-[#2563EB]'
   }`
 
 // Rendered by AdminLayout in both the desktop rail and the mobile drawer.

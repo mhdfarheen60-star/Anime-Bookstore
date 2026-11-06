@@ -1,23 +1,45 @@
 import Order from '../models/Order.js';
+import User from '../models/User.js';
 import { AppError } from '../middleware/errorMiddleware.js';
 import escapeRegex from '../utils/escapeRegex.js';
 
 const getAllOrders = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, status, search, sort = 'createdAt', order = 'desc' } = req.query;
+    const { page = 1, limit = 20, status, paymentStatus, search, sort = 'createdAt', order = 'desc', startDate, endDate } = req.query;
 
     const query = {};
     if (status) query.status = status;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
+    
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+    
     if (search) {
       const pattern = escapeRegex(search);
+      // Orders store the shipping recipient, not the account email, so match
+      // the linked user's email separately.
+      const matchingUsers = await User.find({ email: { $regex: pattern, $options: 'i' } })
+        .select('_id')
+        .limit(100)
+        .lean();
       query.$or = [
         { orderNumber: { $regex: pattern, $options: 'i' } },
         { 'shippingAddress.name': { $regex: pattern, $options: 'i' } },
+        ...(matchingUsers.length ? [{ user: { $in: matchingUsers.map((u) => u._id) } }] : []),
       ];
     }
 
     const sortOptions = {};
-    const allowedSorts = ['createdAt', 'total', 'status'];
+    const allowedSorts = ['createdAt', 'total', 'status', 'orderNumber'];
     const sortField = allowedSorts.includes(sort) ? sort : 'createdAt';
     sortOptions[sortField] = order === 'asc' ? 1 : -1;
 
@@ -44,6 +66,43 @@ const getAllOrders = async (req, res, next) => {
           totalPages: Math.ceil(total / limitNum),
           totalOrders: total,
         },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getOrderStats = async (req, res, next) => {
+  try {
+    const [
+      totalOrders,
+      pendingOrders,
+      processingOrders,
+      shippedOrders,
+      deliveredOrders,
+      cancelledOrders,
+      confirmedOrders,
+    ] = await Promise.all([
+      Order.countDocuments({}),
+      Order.countDocuments({ status: 'pending' }),
+      Order.countDocuments({ status: 'processing' }),
+      Order.countDocuments({ status: 'shipped' }),
+      Order.countDocuments({ status: 'delivered' }),
+      Order.countDocuments({ status: 'cancelled' }),
+      Order.countDocuments({ status: 'confirmed' }),
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        totalOrders,
+        pendingOrders,
+        confirmedOrders,
+        processingOrders,
+        shippedOrders,
+        deliveredOrders,
+        cancelledOrders,
       },
     });
   } catch (error) {
@@ -117,4 +176,4 @@ const updateOrderStatus = async (req, res, next) => {
   }
 };
 
-export { getAllOrders, getOrderById, updateOrderStatus };
+export { getAllOrders, getOrderById, updateOrderStatus, getOrderStats };
