@@ -157,11 +157,25 @@ app.use(globalErrorHandler);
 
   // In production the API must not start without a database. In development we
   // allow a degraded start so local work can continue, but the health check reports it.
-  const PORT = Number(process.env.PORT) || 5000;
+  const resolvePort = (value, fallback = 5000) => {
+    const n = Number.parseInt(String(value ?? '').trim(), 10);
+    if (Number.isFinite(n) && n > 0 && n < 65536) return n;
+    const match = String(value ?? '').match(/(\d{2,5})/);
+    if (match) {
+      const m = Number.parseInt(match[1], 10);
+      if (Number.isFinite(m) && m > 0 && m < 65536) return m;
+    }
+    return fallback;
+  };
+  const configuredPort = process.env.PORT;
+  const PORT = resolvePort(configuredPort, 5000);
+  if (configuredPort != null && String(configuredPort).trim() !== '' && PORT === 5000 && String(configuredPort).trim() !== '5000') {
+    console.warn('PORT env var is not a plain number; using 5000. In Render, remove any custom PORT override so Render can assign PORT.');
+  }
   const HOST = '0.0.0.0';
   const startServer = async () => {
     console.log('Loading environment variables...');
-    console.log(`Runtime: NODE_ENV=${process.env.NODE_ENV || 'development'}, PORT=${process.env.PORT || '(default 5000)'}, MONGO_URI=${process.env.MONGO_URI ? 'set' : 'MISSING'}`);
+    console.log(`Runtime: NODE_ENV=${process.env.NODE_ENV || 'development'}, PORT=${PORT}${configuredPort ? ' (from env)' : ''}, MONGO_URI=${process.env.MONGO_URI ? 'set' : 'MISSING'}`);
     try {
       await connectDB();
     } catch (err) {
