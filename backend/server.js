@@ -39,8 +39,9 @@ if (process.env.NODE_ENV === 'production') {
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     problems.push('JWT_SECRET is missing or shorter than 32 characters');
   }
-  const origins = [...(process.env.CLIENT_URL || ''), ...(process.env.FRONTEND_URL ? `,${process.env.FRONTEND_URL}` : '')]
-    .split(',')
+  const origins = [process.env.CLIENT_URL, process.env.FRONTEND_URL]
+    .filter(Boolean)
+    .flatMap((url) => String(url).split(','))
     .map((o) => o.trim())
     .filter(Boolean);
   if (!origins.length) problems.push('CLIENT_URL or FRONTEND_URL must be set for production CORS');
@@ -58,26 +59,33 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-// CORS configuration. CLIENT_URL/FRONTEND_URL may hold comma-separated origins.
-// Only explicitly listed origins are allowed (credentials enabled).
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  process.env.FRONTEND_URL,
-]
+// CORS configuration. Explicitly allow known origins + CLIENT_URL/FRONTEND_URL env.
+// Credentials enabled, so no wildcard origin. Preflight handled for all routes.
+const envOrigins = [process.env.CLIENT_URL, process.env.FRONTEND_URL]
   .filter(Boolean)
-  .flatMap((url) => url.split(','))
+  .flatMap((url) => String(url).split(','))
   .map((url) => url.trim())
   .filter(Boolean);
-const effectiveOrigins =
-  allowedOrigins.length > 0 ? [...new Set(allowedOrigins)] : ['http://localhost:5173'];
+const allowedOrigins = [
+  'https://anime-bookstore-frontend.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  ...envOrigins,
+];
+const effectiveOrigins = [...new Set(allowedOrigins)];
 const corsOptions = {
-  origin: effectiveOrigins,
+  origin: (origin, callback) => {
+    // Allow non-browser requests (no Origin) and explicitly allowed origins.
+    if (!origin || effectiveOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  // X-CSRF-Token is required on every mutating request, so preflights must allow it.
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-CSRF-Token'],
+  optionsSuccessStatus: 204,
 };
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Body parsing. Raw JSON is required for Stripe webhook signature verification.
 // Limits are small: every large payload in this app is an image with its own
