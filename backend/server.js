@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
 import 'dotenv/config';
 import { UPLOADS_DIR } from './utils/coverStorage.js';
 
-import connectDB from './config/db.js';
+import connectDB, { getDbDiagnostics } from './config/db.js';
 import { globalErrorHandler, notFound } from './middleware/errorMiddleware.js';
 import { sanitizeInput } from './middleware/validateMiddleware.js';
 import { apiLimiter, authLimiter, adminLimiter, paymentLimiter } from './middleware/rateLimiter.js';
@@ -29,6 +29,15 @@ import paymentRoutes from './routes/paymentRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
 
 const app = express();
+
+// Render sets RENDER=true automatically. If NODE_ENV is missing there, the app
+// silently runs with development defaults (relaxed rate limits, degraded mode
+// after a DB failure), which makes production outages look like normal 500s.
+if (process.env.RENDER && process.env.NODE_ENV !== 'production') {
+  console.warn(
+    'Render detected but NODE_ENV is not "production". Set NODE_ENV=production in the Render Environment settings.'
+  );
+}
 
 // Fail fast in production when critical configuration is missing or weak.
 // Running with a default JWT secret or no database credentials is a silent
@@ -127,10 +136,19 @@ app.use('/uploads', express.static(UPLOADS_DIR, {
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
+  const diagnostics = getDbDiagnostics();
   res.status(databaseConnected ? 200 : 503).json({
     success: databaseConnected,
     message: 'Backend is running',
     database: databaseConnected ? 'Connected' : 'Disconnected',
+    // Safe reason code only (configuration | dns | authentication | network |
+    // unknown). Never contains the URI, credentials, or driver stack.
+    ...(databaseConnected
+      ? {}
+      : {
+          reason: diagnostics.lastFailure?.category ?? (process.env.MONGO_URI ? 'connecting' : 'configuration'),
+          usingPublicDns: diagnostics.usingPublicDns,
+        }),
     timestamp: new Date().toISOString(),
   });
 });
