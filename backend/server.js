@@ -61,11 +61,12 @@ app.use(helmet({
 // CORS configuration. CLIENT_URL/FRONTEND_URL may hold comma-separated origins.
 // Only explicitly listed origins are allowed (credentials enabled).
 const allowedOrigins = [
-  ...(process.env.CLIENT_URL || ''),
-  ...(process.env.FRONTEND_URL ? `,${process.env.FRONTEND_URL}` : ''),
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
 ]
-  .split(',')
-  .map((o) => o.trim())
+  .filter(Boolean)
+  .flatMap((url) => url.split(','))
+  .map((url) => url.trim())
   .filter(Boolean);
 const effectiveOrigins =
   allowedOrigins.length > 0 ? [...new Set(allowedOrigins)] : ['http://localhost:5173'];
