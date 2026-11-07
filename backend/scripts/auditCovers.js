@@ -33,9 +33,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Book from '../models/Book.js';
+import connectDB from '../config/db.js';
 import { verifiedCovers, VERIFIED_ON } from '../data/verifiedCovers.js';
 import { checkCoverReference, findCoverCandidates } from '../utils/coverLookup.js';
-import { saveCoverImage } from '../utils/coverStorage.js';
+import { saveCoverImage, detectImageType } from '../utils/coverStorage.js';
 import { normalizeIsbn, isValidIsbn } from '../utils/isbn.js';
 
 dotenv.config();
@@ -78,8 +79,11 @@ const cacheCover = async (entry) => {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const type = res.headers.get('content-type') ?? '';
-  if (!type.startsWith('image/')) throw new Error(`not an image (${type || 'no content-type'})`);
   const buffer = Buffer.from(await res.arrayBuffer());
+  // Some CDNs return real image bytes without an image Content-Type; sniff them.
+  if (!type.startsWith('image/') && !detectImageType(buffer)) {
+    throw new Error(`not an image (${type || 'no content-type'})`);
+  }
   if (buffer.length < 1000) throw new Error(`placeholder image (${buffer.length} bytes)`);
   const ref = await saveCoverImage(buffer, { name: entry.cacheName });
   const check = await checkCoverReference(ref);
@@ -102,7 +106,7 @@ const checkAllCovers = async (refs, concurrency = 5) => {
 
 const main = async () => {
   if (!process.env.MONGO_URI) throw new Error('MONGO_URI is not set');
-  await mongoose.connect(process.env.MONGO_URI, { serverSelectionTimeoutMS: 5000 });
+  await connectDB();
 
   const books = await Book.find({}).select('title author isbn coverImage series volumeNumber category').lean();
   console.log(`${APPLY ? 'APPLYING FIXES' : 'AUDIT ONLY (no changes)'} - ${books.length} books${CACHE ? ' (cache reviewed covers locally)' : ''}\n`);

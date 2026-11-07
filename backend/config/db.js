@@ -55,7 +55,7 @@ const validateMongoUri = (uri) => {
 
 const sanitizeMongoError = (error) => {
   const uri = process.env.MONGO_URI || "";
-  let msg = String(error?.message || "");
+  let msg = String(error?.message || error || "");
   // Never leak credentials if a driver error echoes the URI.
   if (uri) {
     try {
@@ -68,6 +68,18 @@ const sanitizeMongoError = (error) => {
     }
   }
   return msg.replace(/mongodb(\+srv)?:\/\/[^\s@]+@/gi, "mongodb$1://[REDACTED]@");
+};
+
+const mongoTarget = (uri) => {
+  if (!uri) return "MISSING";
+  const scheme = uri.startsWith("mongodb+srv://") ? "mongodb+srv" : uri.startsWith("mongodb://") ? "mongodb" : "unknown";
+  try {
+    const u = new URL(uri.replace(/^mongodb(\+srv)?:/, "http:"));
+    const db = (u.pathname || "").replace(/^\//, "") || "(default)";
+    return `${scheme}://${u.host || "[invalid-host]"}/${db}`;
+  } catch {
+    return `${scheme}://[unparseable]`;
+  }
 };
 
 // Classify a failure without ever exposing credentials. The category is safe
@@ -155,8 +167,13 @@ const connectDB = async () => {
 
   validateMongoUri(mongoUri);
 
+  const startedAt = Date.now();
+  console.log(`Connecting to MongoDB (${mongoTarget(mongoUri)})...`);
+  console.log(
+    "MongoDB options: maxPoolSize=10, serverSelectionTimeoutMS=30000, connectTimeoutMS=30000, socketTimeoutMS=45000, family=4"
+  );
+
   try {
-    console.log("Connecting to MongoDB Atlas...");
     await ensureSrvResolution(mongoUri);
 
     const conn = await mongoose.connect(mongoUri, {
@@ -169,25 +186,40 @@ const connectDB = async () => {
 
     lastFailure = null;
     console.log(
-      `MongoDB Connected Successfully (host: ${conn.connection.host}, database: ${conn.connection.name})`
+      `MongoDB Connected Successfully in ${Date.now() - startedAt}ms (host: ${conn.connection.host}, database: ${conn.connection.name})`
     );
 
     return conn;
   } catch (error) {
     const safeMessage = sanitizeMongoError(error);
-    lastFailure = {
-      category: classifyFailure(error),
+    const details = {
+      name: error?.name || "Error",
+      message: safeMessage,
       code: error?.code ?? null,
+      category: classifyFailure(error),
+      elapsedMs: Date.now() - startedAt,
+      usingPublicDns,
+      reason: error?.reason?.message ? sanitizeMongoError(error.reason) : undefined,
+      syscall: error?.syscall,
+      hostname: error?.hostname ? "[REDACTED_HOST]" : undefined,
+    };
+    lastFailure = {
+      category: details.category,
+      code: details.code,
       at: new Date().toISOString(),
     };
-    console.error("MongoDB connection failed:", {
-      name: error?.name,
-      message: safeMessage,
-      code: error?.code,
-      reason: error?.reason?.message ? sanitizeMongoError(error.reason) : undefined,
-    });
+    console.error("MongoDB connection failed (startup cannot continue in production):", details);
     console.error("Troubleshooting:", explainFailure(error));
-    const wrapped = new Error(`MongoDB ${error?.name || "Error"}: ${safeMessage}`);
+    if (details.category === "authentication") {
+      console.error(
+        "Checklist: Atlas Database Access user/password, URL-encode password special chars, authSource if required, and Render MONGO_URI has no quotes/extra whitespace."
+      );
+    } else if (details.category === "network" || details.category === "dns") {
+      console.error(
+        "Checklist: Atlas Network Access allows Render egress (or 0.0.0.0/0 to verify), cluster is running/not paused, and SRV host is correct."
+      );
+    }
+    const wrapped = new Error(`MongoDB ${details.name}: ${safeMessage}`);
     wrapped.cause = undefined; // avoid leaking nested details
     throw wrapped;
   }

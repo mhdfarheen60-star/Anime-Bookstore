@@ -197,12 +197,13 @@ app.use(globalErrorHandler);
     try {
       await connectDB();
     } catch (err) {
-      console.error('MongoDB connection failed:', {
+      console.error('MongoDB startup error (already logged with safe details):', {
         name: err?.name,
         message: err?.message,
+        code: err?.code ?? null,
       });
-      if (err?.stack) console.error(err.stack);
       if (process.env.NODE_ENV === 'production') {
+        console.error('Exiting: database connection is required in production.');
         process.exit(1);
       }
       console.warn('Starting server in degraded mode (development only).');

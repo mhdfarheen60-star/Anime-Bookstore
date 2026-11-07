@@ -18,6 +18,7 @@
 //   note             - what was found; copied into the report
 
 import { additionalBooks } from './additionalBooks.js';
+import { catalogueCoverEntries } from './catalogueCoverEntries.js';
 
 const ol = (id) => `https://covers.openlibrary.org/b/id/${id}-L.jpg`;
 const SOURCE = 'Open Library';
@@ -25,6 +26,14 @@ const SOURCE = 'Open Library';
 export const VERIFIED_ON = '2026-10-13';
  
 export const verifiedCovers = [
+  // ---- Bulk catalogue pass (reviewed 2026-11-07) ----------------------------
+  // Generated into data/catalogueCoverEntries.js: Open Library covers that were
+  // downloaded and visually checked, plus exact publisher product covers for
+  // VIZ Media, Yen Press, Kodansha Comics, Vertical and J-Novel Club. Publisher
+  // entries take precedence over Open Library for the same title. These come
+  // first so they win the ISBN/title match for any book reviewed here.
+  ...catalogueCoverEntries,
+
   // ---- Anime artbooks and guidebooks (reviewed 2026-11-04) ------------------
   // Only covers whose publisher record matches the exact product are listed.
   // Where no such cover exists the entry has no coverUrl: the script leaves the
@@ -138,12 +147,6 @@ export const verifiedCovers = [
     storedIsbn: '978-1421520544',
     series: 'Vagabond', volumeNumber: 1,
     note: 'Needs a decision: stored ISBN 9781421520544 is "Vagabond VIZBIG Edition, Vol. 1" (verified cover: covers.openlibrary.org/b/id/12856568-L.jpg), but the title says "Vagabond, Vol. 1". Rename the book to the VIZBIG edition or correct the ISBN, then pick the cover in the admin panel.',
-  },
-  {
-    title: 'Your Name (Novel)', author: 'Makoto Shinkai',
-    storedIsbn: '978-0316558556',
-    series: 'Your Name',
-    note: 'Needs a decision: stored ISBN 9780316558556 is the manga "your name., Vol. 1" (Yen Press), not the novel. Open Library has no cover for the novel (ISBN 9780316471862). Upload the novel cover or change the record to the manga.',
   },
   {
     title: 'Vinland Saga, Book 1', author: 'Makoto Yukimura',

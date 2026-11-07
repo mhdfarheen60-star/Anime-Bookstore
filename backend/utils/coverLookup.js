@@ -13,6 +13,7 @@ import { access } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeIsbn, isValidIsbn } from './isbn.js';
+import { detectImageType } from './imageStorage.js';
 
 const USER_AGENT = 'AnimeBookstore/1.0 (cover lookup)';
 const TIMEOUT_MS = 10000;
@@ -292,15 +293,21 @@ export const checkCoverReference = async (ref) => {
   try {
     const res = await fetchWithTimeout(ref);
     const type = res.headers.get('content-type') ?? '';
-    const bytes = (await res.arrayBuffer()).byteLength;
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const bytes = buffer.length;
     if (!res.ok) {
       const transient = res.status === 429 || res.status >= 500;
       return { ok: false, transient, reason: `HTTP ${res.status}` };
     }
-    if (!type.startsWith('image/')) return { ok: false, reason: `not an image (${type || 'no content-type'})` };
+    // Some CDNs (notably VIZ's CloudFront) serve real image files with no
+    // Content-Type or `application/octet-stream`; trust the magic bytes then.
+    const sniffed = detectImageType(buffer);
+    if (!type.startsWith('image/') && !sniffed) {
+      return { ok: false, reason: `not an image (${type || 'no content-type'})` };
+    }
     // Open Library and others answer missing covers with a 1x1 placeholder.
     if (bytes < 1000) return { ok: false, reason: `placeholder image (${bytes} bytes)` };
-    return { ok: true, bytes, contentType: type };
+    return { ok: true, bytes, contentType: type.startsWith('image/') ? type : `image/${sniffed}` };
   } catch (error) {
     return { ok: false, transient: true, reason: error.name === 'AbortError' ? 'timed out' : error.message };
   }
